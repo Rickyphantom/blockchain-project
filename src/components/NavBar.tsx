@@ -53,7 +53,6 @@ export default function NavBar() {
           setIsConnected(true);
         }
 
-        // 계정 변경 리스너
         ethereum.on?.('accountsChanged', (accs: unknown) => {
           const accounts = accs as string[];
           if (accounts && accounts.length > 0) {
@@ -71,41 +70,94 @@ export default function NavBar() {
   }, []);
 
   return (
-    <nav style={{ position: 'fixed', top: 18, right: 18, display: 'flex', gap: 10, alignItems: 'center', zIndex: 60 }}>
-      <Link href="/" className={`btn ${path === '/' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px' }}>
+    <nav style={{
+      position: 'fixed',
+      top: 16,
+      right: 16,
+      display: 'flex',
+      gap: 12,
+      alignItems: 'center',
+      zIndex: 60,
+      background: 'linear-gradient(135deg, rgba(15,23,36,0.9), rgba(7,16,34,0.9))',
+      backdropFilter: 'blur(14px)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: 16,
+      padding: '10px 16px',
+      boxShadow: '0 12px 32px rgba(0,0,0,0.5)',
+    }}>
+      {/* 홈 */}
+      <Link href="/" className={`btn ${path === '/' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px', fontSize: '13px', gap: 6 }}>
         🏠 Home
       </Link>
 
-      <Link href="/market" className={`btn ${path === '/market' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px' }}>
+      {/* 마켓 */}
+      <Link href="/market" className={`btn ${path === '/market' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px', fontSize: '13px', gap: 6 }}>
         🛒 마켓
       </Link>
 
-      <Link href="/upload" className={`btn ${path === '/upload' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px' }}>
-        ➕ 등록
+      {/* 등록 */}
+      <Link href="/upload" className={`btn ${path === '/upload' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px', fontSize: '13px', gap: 6 }}>
+        📤 등록
       </Link>
 
-      <Link href="/dashboard" className={`btn ${path === '/dashboard' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px' }}>
+      {/* 대시보드 */}
+      <Link href="/dashboard" className={`btn ${path === '/dashboard' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px', fontSize: '13px', gap: 6 }}>
         📊 대시보드
       </Link>
 
-      <div style={{ minWidth: 44, textAlign: 'center' }}>
-        <div className="tag">장바구니</div>
-        <div style={{ fontWeight: 700 }}>{cart.length}</div>
+      {/* 구분선 */}
+      <div style={{ width: '1px', height: 24, background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* 장바구니 */}
+      <div style={{ 
+        display: 'flex', 
+        alignItems: 'center', 
+        gap: 6,
+        padding: '6px 10px',
+        background: 'rgba(79,157,255,0.08)',
+        borderRadius: 8,
+        border: '1px solid rgba(79,157,255,0.2)'
+      }}>
+        <span style={{ fontSize: '16px' }}>🛍️</span>
+        <span style={{ fontSize: '13px', fontWeight: 600 }}>장바구니</span>
+        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', marginLeft: 4 }}>({cart.length})</span>
       </div>
 
+      {/* 구분선 */}
+      <div style={{ width: '1px', height: 24, background: 'rgba(255,255,255,0.1)' }} />
+
+      {/* 지갑 연결 */}
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {isConnected && address ? (
           <>
-            <div style={{ background: 'rgba(255,255,255,0.03)', padding: '6px 10px', borderRadius: 8, fontSize: 13 }}>
-              {short(address)}
+            <div style={{ 
+              background: 'rgba(123,228,162,0.1)', 
+              padding: '6px 10px', 
+              borderRadius: 8, 
+              fontSize: '12px',
+              border: '1px solid rgba(123,228,162,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6
+            }}>
+              <span>✅</span>
+              <span style={{ fontWeight: 600 }}>{short(address)}</span>
             </div>
-            <button className="btn btn-secondary" onClick={disconnect} style={{ padding: '6px 10px' }}>
-              연결 해제
+            <button 
+              className="btn btn-secondary" 
+              onClick={disconnect} 
+              style={{ padding: '6px 12px', fontSize: '12px', gap: 4 }}
+            >
+              🔌 연결해제
             </button>
           </>
         ) : (
-          <button className="btn btn-primary" onClick={connect} style={{ padding: '6px 10px' }}>
-            지갑 연결
+          <button 
+            className="btn btn-primary" 
+            onClick={connect} 
+            style={{ padding: '8px 14px', fontSize: '13px', gap: 6, fontWeight: 600 }}
+          >
+            🦊 지갑 연결
           </button>
         )}
       </div>
