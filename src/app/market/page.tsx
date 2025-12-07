@@ -3,6 +3,8 @@
 import React, { useEffect, useState } from 'react';
 import { getDocuments, searchDocuments } from '@/lib/supabase';
 import { getSigner } from '@/lib/web3';
+import { readLocalStorage, writeLocalStorage } from '@/lib/typedStorage';
+import type { CartItem } from '@/context/AppState';
 
 interface Document {
   id: number;
@@ -71,18 +73,14 @@ export default function MarketPage() {
 
   const handleAddToCart = (doc: Document) => {
     const key = `pending_purchases_${userAddress || 'anon'}`;
-    const existing = typeof window !== 'undefined' ? localStorage.getItem(key) : null;
-
-    // 안전한 파싱: 로컬스토리지에서 불러온 값은 PendingPurchase[]로 간주
-    const list: PendingPurchase[] = existing ? (JSON.parse(existing) as PendingPurchase[]) : [];
-
-    if (list.some((p) => p.doc_id === doc.doc_id)) {
+    const existing = readLocalStorage<CartItem[]>(key, []);
+    if (existing.some((p) => p.doc_id === doc.doc_id)) {
       setCartMessage('이미 장바구니에 있습니다');
       setTimeout(() => setCartMessage(''), 2000);
       return;
     }
 
-    const item: PendingPurchase = {
+    const item: CartItem = {
       doc_id: doc.doc_id,
       title: doc.title,
       price: doc.price_per_token,
@@ -90,16 +88,8 @@ export default function MarketPage() {
       seller: doc.seller,
     };
 
-    list.push(item);
-
-    if (typeof window !== 'undefined') {
-      try {
-        localStorage.setItem(key, JSON.stringify(list));
-      } catch (e) {
-        console.error('localStorage setItem error', e);
-      }
-    }
-
+    const next = [...existing, item];
+    writeLocalStorage<CartItem[]>(key, next);
     setCartMessage(`"${doc.title}" 장바구니에 추가됨`);
     setTimeout(() => setCartMessage(''), 2000);
   };

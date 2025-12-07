@@ -1,6 +1,7 @@
 'use client';
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { readLocalStorage, writeLocalStorage, readSessionStorage, writeSessionStorage } from '@/lib/typedStorage';
 
 type UploadForm = {
   title: string;
@@ -32,50 +33,28 @@ type AppStateType = {
 const AppStateContext = createContext<AppStateType | undefined>(undefined);
 
 export const AppStateProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [uploadForm, setUploadFormState] = useState<UploadForm>(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? sessionStorage.getItem('uploadForm') : null;
-      const parsed = raw ? JSON.parse(raw) : null;
-      return parsed ?? { title: '', description: '', pricePerToken: '', amount: '1', file: null };
-    } catch {
-      return { title: '', description: '', pricePerToken: '', amount: '1', file: null };
-    }
-  });
+  const [uploadForm, setUploadFormState] = useState<UploadForm>(() =>
+    readSessionStorage<UploadForm | null>('uploadForm', null) ?? { title: '', description: '', pricePerToken: '', amount: '1', file: null }
+  );
 
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? localStorage.getItem('cart') : null;
-      return raw ? (JSON.parse(raw) as CartItem[]) : [];
-    } catch {
-      return [];
-    }
-  });
+  const [cart, setCart] = useState<CartItem[]>(() =>
+    readLocalStorage<CartItem[]>('cart', [])
+  );
 
-  const [searchQuery, setSearchQuery] = useState<string>(() => {
-    try {
-      const raw = typeof window !== 'undefined' ? sessionStorage.getItem('searchQuery') : null;
-      return raw ?? '';
-    } catch {
-      return '';
-    }
-  });
+  const [searchQuery, setSearchQuery] = useState<string>(() =>
+    readSessionStorage<string>('searchQuery', '')
+  );
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem('uploadForm', JSON.stringify(uploadForm));
-    } catch {}
+    writeSessionStorage<UploadForm>('uploadForm', uploadForm);
   }, [uploadForm]);
 
   useEffect(() => {
-    try {
-      localStorage.setItem('cart', JSON.stringify(cart));
-    } catch {}
+    writeLocalStorage<CartItem[]>('cart', cart);
   }, [cart]);
 
   useEffect(() => {
-    try {
-      sessionStorage.setItem('searchQuery', searchQuery);
-    } catch {}
+    writeSessionStorage<string>('searchQuery', searchQuery);
   }, [searchQuery]);
 
   const setUploadForm = (payload: Partial<UploadForm>) => {
