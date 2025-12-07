@@ -58,6 +58,29 @@ export default function About() {
     },
   ];
 
+  const projectFeatures = [
+    {
+      icon: '🔒',
+      title: '블록체인 기반 보안',
+      description: 'Ethereum 블록체인을 활용한 안전한 문서 거래'
+    },
+    {
+      icon: '🎫',
+      title: 'NFT 소유권 증명',
+      description: 'ERC-721 표준 NFT로 디지털 소유권 보장'
+    },
+    {
+      icon: '⚡',
+      title: '스마트 컨트랙트',
+      description: '자동화된 거래 처리 및 투명한 수수료 정산'
+    },
+    {
+      icon: '💎',
+      title: '탈중앙화',
+      description: '중개자 없는 직접 거래 시스템'
+    },
+  ];
+
   return (
     <div style={{
       minHeight: '100vh',
@@ -65,7 +88,35 @@ export default function About() {
       background: 'linear-gradient(135deg, #0f1724 0%, #071022 100%)',
     }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        {/* 팀 사진 섹션 */}
+        {/* 프로젝트 타이틀 */}
+        <div style={{ textAlign: 'center', marginBottom: 60 }}>
+          <h1 style={{
+            fontSize: '3rem',
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+            marginBottom: 16,
+          }}>
+            📚 DocuTrade
+          </h1>
+          <p style={{
+            fontSize: '1.3rem',
+            color: 'var(--text-secondary)',
+            marginBottom: 8,
+          }}>
+            블록체인 기반 문서 거래 플랫폼
+          </p>
+          <p style={{
+            fontSize: '1rem',
+            color: 'var(--text-secondary)',
+            opacity: 0.8,
+          }}>
+            Blockchain-Based Document Trading Platform
+          </p>
+        </div>
+
+        {/* 팀 대표 이미지 */}
         <div style={{
           marginBottom: 60,
           background: 'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
@@ -74,6 +125,14 @@ export default function About() {
           border: '1px solid rgba(255,255,255,0.08)',
           textAlign: 'center',
         }}>
+          <h2 style={{
+            fontSize: '1.5rem',
+            fontWeight: 600,
+            color: 'var(--text-primary)',
+            marginBottom: 24,
+          }}>
+            👥 Team Members
+          </h2>
           <div style={{
             width: '100%',
             maxWidth: 600,
@@ -85,7 +144,7 @@ export default function About() {
           }}>
             <img 
               src="/두사람은문제아지만최강.jpg"
-              alt="두 사람은 문제아지만 최강"
+              alt="Team"
               style={{
                 width: '100%',
                 height: 'auto',
@@ -95,13 +154,13 @@ export default function About() {
           </div>
         </div>
 
-        {/* 팀원 카드 */}
+        {/* 팀원 소개 */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
           gap: 32,
           maxWidth: 800,
-          margin: '0 auto 60px',
+          margin: '0 auto 80px',
         }}>
           {teamMembers.map((member, index) => (
             <div
@@ -125,21 +184,18 @@ export default function About() {
                 e.currentTarget.style.boxShadow = '0 8px 32px rgba(0,0,0,0.3)';
               }}
             >
-              {/* 캐릭터 이미지 */}
               <div style={{
                 width: 120,
                 height: 120,
                 margin: '0 auto 20px',
                 borderRadius: '50%',
                 overflow: 'hidden',
-                border: '3px solid',
-                borderImage: 'linear-gradient(135deg, var(--accent), var(--primary)) 1',
+                border: '3px solid rgba(79,157,255,0.5)',
                 boxShadow: '0 8px 24px rgba(79,157,255,0.3)',
-                background: 'linear-gradient(135deg, var(--accent), var(--primary))',
               }}>
                 <img 
                   src={member.image}
-                  alt={member.character}
+                  alt={member.name}
                   style={{
                     width: '100%',
                     height: '100%',
@@ -169,14 +225,20 @@ export default function About() {
               </div>
 
               <div style={{
-                fontSize: '0.95rem',
+                display: 'inline-block',
+                background: 'rgba(79,157,255,0.2)',
+                padding: '6px 16px',
+                borderRadius: 20,
+                fontSize: '0.9rem',
                 color: 'var(--accent)',
-                fontWeight: 500,
-                marginBottom: 4,
+                fontWeight: 600,
+                marginBottom: 16,
+                width: '100%',
                 textAlign: 'center',
               }}>
                 {member.role}
               </div>
+
               <p style={{
                 fontSize: '0.9rem',
                 color: 'var(--text-secondary)',
@@ -217,7 +279,7 @@ export default function About() {
                         position: 'absolute',
                         left: 0,
                         color: 'var(--accent)',
-                      }}>•</span>
+                      }}>✓</span>
                       {resp}
                     </li>
                   ))}
@@ -227,11 +289,8 @@ export default function About() {
           ))}
         </div>
 
-        {/* 기술 스택 섹션 */}
-        <div style={{
-          marginTop: 60,
-          marginBottom: 60,
-        }}>
+        {/* 프로젝트 특징 */}
+        <div style={{ marginBottom: 80 }}>
           <h2 style={{
             fontSize: '2rem',
             fontWeight: 600,
@@ -239,7 +298,67 @@ export default function About() {
             textAlign: 'center',
             color: 'var(--text-primary)',
           }}>
-            🛠️ 사용 기술
+            ✨ 프로젝트 특징
+          </h2>
+
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+            gap: 24,
+          }}>
+            {projectFeatures.map((feature, index) => (
+              <div
+                key={index}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
+                  borderRadius: 16,
+                  padding: 24,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  textAlign: 'center',
+                  transition: 'all 0.3s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.transform = 'translateY(-4px)';
+                  e.currentTarget.style.borderColor = 'rgba(79,157,255,0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
+                }}
+              >
+                <div style={{ fontSize: '3rem', marginBottom: 16 }}>
+                  {feature.icon}
+                </div>
+                <h3 style={{
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  color: 'var(--text-primary)',
+                  marginBottom: 8,
+                }}>
+                  {feature.title}
+                </h3>
+                <p style={{
+                  fontSize: '0.9rem',
+                  color: 'var(--text-secondary)',
+                  lineHeight: 1.5,
+                }}>
+                  {feature.description}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* 기술 스택 */}
+        <div>
+          <h2 style={{
+            fontSize: '2rem',
+            fontWeight: 600,
+            marginBottom: 40,
+            textAlign: 'center',
+            color: 'var(--text-primary)',
+          }}>
+            🛠️ 기술 스택
           </h2>
 
           <div style={{
@@ -330,8 +449,6 @@ export default function About() {
             ))}
           </div>
         </div>
-
-     
       </div>
     </div>
   );
