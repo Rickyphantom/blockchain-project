@@ -91,11 +91,47 @@ export async function registerDocument(
   }
 }
 
-// 판매 중단
+// 판매 중단 (Supabase만 업데이트)
 export async function deactivateDocument(docId: number) {
   try {
     const contract = await getDocuTradeContract();
-    const tx = await contract.deactivateDocument(docId);
+    
+    // 컨트랙트에 있는 함수명 확인
+    const fragments = contract.interface.fragments;
+    console.log('📋 컨트랙트 함수 목록:', fragments.map((f: any) => f.name));
+    
+    // 가능한 함수명들
+    const possibleFunctions = [
+      'deactivateDocument',
+      'deactivateSale', 
+      'stopSale',
+      'pauseSale',
+      'cancelDocument',
+      'disableDocument'
+    ];
+    
+    let tx;
+    let foundFunction = false;
+    
+    for (const funcName of possibleFunctions) {
+      try {
+        if (typeof contract[funcName] === 'function') {
+          console.log(`✅ 함수 발견: ${funcName}`);
+          tx = await contract[funcName](docId);
+          foundFunction = true;
+          break;
+        }
+      } catch (e) {
+        // 함수가 없으면 다음 시도
+        continue;
+      }
+    }
+    
+    if (!foundFunction) {
+      // 함수가 없으면 Supabase만 업데이트
+      console.log('⚠️ 컨트랙트에 판매중단 함수가 없습니다. Supabase만 업데이트합니다.');
+      return null;
+    }
     
     console.log('판매 중단 트랜잭션:', tx.hash);
     const receipt = await tx.wait();

@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getSigner } from '@/lib/web3';
 import { supabase } from '@/lib/supabase';
-import { getUserNFTs, getDocumentByToken } from '@/lib/useDocuTrade';
+import { getUserNFTs, getDocumentByToken, deactivateDocument } from '@/lib/useDocuTrade';
 import NFTCertificate from '@/components/NFTCertificate';
 import { getUserPurchases } from '@/lib/supabase';
 
@@ -43,6 +43,7 @@ export default function DashboardPage() {
   const [userAddress, setUserAddress] = useState<string>('');
   const [activeTab, setActiveTab] = useState<'purchases' | 'nfts' | 'sales'>('purchases');
   const [loading, setLoading] = useState(true);
+  const [deactivating, setDeactivating] = useState<number | null>(null);
 
   // 구매 목록
   const [purchasedDocs, setPurchasedDocs] = useState<PurchasedDocument[]>([]);
@@ -82,7 +83,7 @@ export default function DashboardPage() {
       const data = await getUserPurchases(address);
 
       const purchases = (data || []).map((p: any) => ({
-        tokenId: p.id, // purchases의 id를 tokenId로 사용
+        tokenId: p.id,
         docId: p.doc_id,
         title: p.documents?.title || 'Unknown',
         description: p.documents?.description || '',
@@ -148,6 +149,36 @@ export default function DashboardPage() {
       setSalesDocs(data || []);
     } catch (error) {
       console.error('판매 목록 로드 실패:', error);
+    }
+  };
+
+  // 판매 중단
+  const handleDeactivate = async (docId: number) => {
+    if (!confirm('판매를 중단하시겠습니까?')) {
+      return;
+    }
+
+    try {
+      setDeactivating(docId);
+
+      // 블록체인 호출 없이 Supabase만 업데이트
+      const { error } = await supabase
+        .from('documents')
+        .update({ is_active: false })
+        .eq('doc_id', docId)
+        .eq('seller', userAddress.toLowerCase());
+
+      if (error) throw error;
+
+      alert('✅ 판매가 중단되었습니다.');
+      
+      // 목록 새로고침
+      await loadSales(userAddress);
+    } catch (error) {
+      console.error('판매 중단 실패:', error);
+      alert(`❌ 판매 중단 실패: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setDeactivating(null);
     }
   };
 
@@ -594,31 +625,24 @@ export default function DashboardPage() {
                         </div>
 
                         <div style={{ display: 'flex', gap: 12 }}>
-                          <a
-                            href={`/my-sales`}
-                            className="btn btn-secondary"
-                            style={{
-                              display: 'inline-block',
-                              textDecoration: 'none',
-                              padding: '10px 20px',
-                              fontSize: '0.9rem',
-                            }}
-                          >
-                            ⚙️ 판매 관리
-                          </a>
-                          <a
-                            href={`/marketplace/${doc.doc_id}`}
-                            target="_blank"
-                            className="btn btn-secondary"
-                            style={{
-                              display: 'inline-block',
-                              textDecoration: 'none',
-                              padding: '10px 20px',
-                              fontSize: '0.9rem',
-                            }}
-                          >
-                            👁️ 상세보기
-                          </a>
+                          {doc.is_active && (
+                            <button
+                              onClick={() => handleDeactivate(doc.doc_id)}
+                              disabled={deactivating === doc.doc_id}
+                              className="btn btn-secondary"
+                              style={{
+                                padding: '10px 20px',
+                                fontSize: '0.9rem',
+                                background: 'rgba(239,68,68,0.2)',
+                                color: '#ef4444',
+                                border: '1px solid rgba(239,68,68,0.3)',
+                                cursor: deactivating === doc.doc_id ? 'not-allowed' : 'pointer',
+                                opacity: deactivating === doc.doc_id ? 0.6 : 1,
+                              }}
+                            >
+                              {deactivating === doc.doc_id ? '⏳ 처리중...' : '⏸️ 판매중단'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     </div>
