@@ -65,7 +65,7 @@ export default function UploadPage() {
   // 업로드 핸들러
   const handleUpload = async (): Promise<void> => {
     if (!title || !description || !pricePerToken || !file) {
-      alert('모든 필드를 입력해주세요');
+      alert('제목과 설명을 입력해주세요');
       return;
     }
 

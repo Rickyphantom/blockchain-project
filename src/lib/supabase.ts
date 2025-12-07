@@ -40,10 +40,10 @@ export async function uploadPdfFile(file: File, docId: number): Promise<string> 
 }
 
 // ✅ 파일 다운로드
-export async function downloadPdfFile(pdfUrl: string): Promise<void> {
+export async function downloadPdfFile(fileUrl: string): Promise<void> {
   try {
     const link = document.createElement('a');
-    link.href = pdfUrl;
+    link.href = fileUrl;
     link.download = 'document';
     link.click();
   } catch (error) {
@@ -53,37 +53,37 @@ export async function downloadPdfFile(pdfUrl: string): Promise<void> {
 }
 
 // ✅ 문서 업로드 (DB 저장)
-export async function uploadDocument(
-  doc_id: number,
+export const uploadDocument = async (
+  docId: number,
   title: string,
   seller: string,
-  pdf_url: string,
+  fileUrl: string,
   description: string,
-  price_per_token: string,
+  pricePerToken: string,
   amount: number
-) {
+) => {
   const { data, error } = await supabase
     .from('documents')
     .insert([
       {
-        doc_id,
+        doc_id: docId,
         title,
         seller,
-        pdf_url,
+        file_url: fileUrl,
         description,
-        price_per_token,
+        price_per_token: pricePerToken,
         amount,
       },
     ])
-    .select()
-    .single();
+    .select();
 
   if (error) {
-    console.error('Supabase 저장 실패:', error);
-    throw error;
+    console.error('Document upload error:', error);
+    throw new Error(`문서 업로드 실패: ${error.message}`);
   }
+
   return data;
-}
+};
 
 // ✅ 모든 문서 조회
 export async function getDocuments() {
@@ -181,3 +181,20 @@ export async function getTransactionsByDocId(doc_id: number) {
   if (error) throw error;
   return data;
 }
+
+// -- Supabase RLS 정책 설정 (SQL Editor에서 실행)
+// CREATE POLICY "allow_insert_documents" ON documents
+// FOR INSERT
+// WITH CHECK (true);
+
+// CREATE POLICY "allow_select_documents" ON documents
+// FOR SELECT
+// USING (true);
+
+// CREATE POLICY "allow_insert_transactions" ON transactions
+// FOR INSERT
+// WITH CHECK (true);
+
+// CREATE POLICY "allow_select_transactions" ON transactions
+// FOR SELECT
+// USING (true);
