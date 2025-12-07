@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { getDocuments } from '@/lib/supabase';
+import { getDocuments, savePurchase } from '@/lib/supabase';
 import { useAppState } from '@/context/AppState';
 import { buyDocuments } from '@/lib/useDocuTrade';
 import { getSigner } from '@/lib/web3';
@@ -58,7 +58,6 @@ export default function Market() {
     try {
       setPurchasing(doc.doc_id);
 
-      // 지갑 연결 확인
       const signer = await getSigner();
       const buyer = await signer.getAddress();
 
@@ -67,22 +66,29 @@ export default function Market() {
         return;
       }
 
-      // 판매자와 구매자가 같은지 확인
       if (buyer.toLowerCase() === doc.seller.toLowerCase()) {
         alert('⚠️ 자신의 문서는 구매할 수 없습니다');
         return;
       }
 
-      const quantity = 1; // 기본 1개 구매
+      const quantity = 1;
 
       if (confirm(`"${doc.title}"을(를) ${doc.price_per_token} ETH에 구매하시겠습니까?`)) {
         console.log('구매 시작:', { doc_id: doc.doc_id, quantity, price: doc.price_per_token });
 
         const txHash = await buyDocuments(doc.doc_id, quantity, doc.price_per_token);
 
+        // 구매 기록 저장
+        await savePurchase({
+          buyer,
+          doc_id: doc.doc_id,
+          quantity,
+          total_price: doc.price_per_token,
+          tx_hash: txHash,
+        });
+
         alert(`✅ 구매 완료!\n\n📄 문서: ${doc.title}\n⛓️ TX: ${txHash.slice(0, 20)}...`);
 
-        // 문서 목록 새로고침
         const updatedDocs = await getDocuments();
         setDocuments(updatedDocs);
       }

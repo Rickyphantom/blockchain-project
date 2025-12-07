@@ -1,9 +1,9 @@
 import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-export const supabase = createClient(supabaseUrl, supabaseKey);
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 // 한글 포함 원본은 메타로 보존하고, 업로드 키는 안전하게 생성
 export async function uploadPdfFile(file: File, docId: number): Promise<string> {
@@ -180,6 +180,48 @@ export async function getTransactionsByDocId(doc_id: number) {
 
   if (error) throw error;
   return data;
+}
+
+// 구매 기록 저장
+export async function savePurchase(data: {
+  buyer: string;
+  doc_id: number;
+  quantity: number;
+  total_price: string;
+  tx_hash: string;
+}) {
+  const { error } = await supabase.from('purchases').insert([
+    {
+      buyer: data.buyer,
+      doc_id: data.doc_id,
+      quantity: data.quantity,
+      total_price: data.total_price,
+      tx_hash: data.tx_hash,
+      purchased_at: new Date().toISOString(),
+    },
+  ]);
+
+  if (error) throw error;
+}
+
+// 내가 구매한 문서 조회
+export async function getMyPurchases(buyer: string) {
+  const { data, error } = await supabase
+    .from('purchases')
+    .select(`
+      *,
+      documents (
+        title,
+        file_url,
+        description,
+        seller
+      )
+    `)
+    .eq('buyer', buyer)
+    .order('purchased_at', { ascending: false });
+
+  if (error) throw error;
+  return data || [];
 }
 
 // -- Supabase RLS 정책 설정 (SQL Editor에서 실행)

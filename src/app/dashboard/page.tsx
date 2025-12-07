@@ -1,92 +1,190 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { getSigner, EthereumWindow } from '@/lib/web3';
+import { useEffect, useState } from 'react';
+import { getSigner } from '@/lib/web3';
+import { getMyPurchases, downloadPdfFile } from '@/lib/supabase';
 
-export default function DashboardPage() {
-  const [address, setAddress] = useState<string | null>(null);
+interface Purchase {
+  id: number;
+  doc_id: number;
+  quantity: number;
+  total_price: string;
+  tx_hash: string;
+  purchased_at: string;
+  documents: {
+    title: string;
+    file_url: string;
+    description: string;
+    seller: string;
+  };
+}
+
+export default function Dashboard() {
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [loading, setLoading] = useState(true);
+  const [account, setAccount] = useState<string>('');
 
   useEffect(() => {
     (async () => {
       try {
         const signer = await getSigner();
-        const addr = await signer.getAddress();
-        setAddress(addr);
-      } catch (err) {
-        console.error(err);
+        const address = await signer.getAddress();
+        setAccount(address);
+
+        const myPurchases = await getMyPurchases(address);
+        setPurchases(myPurchases);
+      } catch (error) {
+        console.error('구매 내역 로드 실패:', error);
       } finally {
         setLoading(false);
       }
     })();
   }, []);
 
+  const handleDownload = async (fileUrl: string, title: string) => {
+    try {
+      await downloadPdfFile(fileUrl);
+      alert(`✅ "${title}" 다운로드 완료!`);
+    } catch (error) {
+      console.error('다운로드 실패:', error);
+      alert('❌ 다운로드 실패');
+    }
+  };
+
   if (loading) {
     return (
-      <div style={{ padding: 40, textAlign: 'center' }}>
-        <div style={{ fontSize: 36 }}>⏳</div>
-        <div>로딩 중...</div>
-      </div>
-    );
-  }
-
-  if (!address) {
-    return (
-      <div className="card" style={{ textAlign: 'center', padding: 40 }}>
-        <div style={{ fontSize: 48, marginBottom: 16 }}>🔒</div>
-        <h1 className="h1">지갑 연결 필요</h1>
-        <p className="lead" style={{ marginBottom: 20 }}>
-          우측 상단에서 지갑을 연결하세요.
-        </p>
+      <div style={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        background: 'linear-gradient(135deg, #0f1724 0%, #071022 100%)',
+      }}>
+        <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
+          로딩 중...
+        </div>
       </div>
     );
   }
 
   return (
-    <div>
-      <h1 className="h1">📊 대시보드</h1>
-      
-      <div style={{ display: 'grid', gap: 20, gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', marginBottom: 40 }}>
-        {/* 주소 카드 */}
-        <div className="card">
-          <div style={{ fontSize: 40, marginBottom: 12 }}>👤</div>
-          <h2 className="h2">지갑 주소</h2>
-          <div style={{ 
-            padding: 12, 
-            borderRadius: 8, 
-            background: 'rgba(212,175,55,0.08)',
-            border: '1px solid rgba(212,175,55,0.15)',
+    <div style={{
+      minHeight: '100vh',
+      padding: '80px 20px 40px',
+      background: 'linear-gradient(135deg, #0f1724 0%, #071022 100%)',
+    }}>
+      <div style={{ maxWidth: 1200, margin: '0 auto' }}>
+        <h1 style={{
+          fontSize: '2.5rem',
+          fontWeight: 700,
+          marginBottom: 40,
+          textAlign: 'center',
+          background: 'linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%)',
+          WebkitBackgroundClip: 'text',
+          WebkitTextFillColor: 'transparent',
+        }}>
+          📊 내 대시보드
+        </h1>
+
+        <div style={{
+          background: 'rgba(255,255,255,0.02)',
+          borderRadius: 16,
+          padding: 24,
+          marginBottom: 40,
+          border: '1px solid rgba(255,255,255,0.05)',
+        }}>
+          <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
+            내 지갑 주소
+          </div>
+          <div style={{
+            fontSize: '1.1rem',
             fontFamily: 'monospace',
-            fontSize: 12,
-            wordBreak: 'break-all'
+            color: 'var(--accent)',
+            wordBreak: 'break-all',
           }}>
-            {address}
+            {account || '연결되지 않음'}
           </div>
         </div>
 
-        {/* 판매 통계 */}
-        <div className="card">
-          <div style={{ fontSize: 40, marginBottom: 12 }}>💰</div>
-          <h2 className="h2">판매 통계</h2>
-          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>0 ETH</div>
-          <p className="lead">아직 판매한 문서가 없습니다</p>
-        </div>
+        <h2 style={{
+          fontSize: '1.8rem',
+          fontWeight: 600,
+          marginBottom: 24,
+          color: 'var(--text-primary)',
+        }}>
+          💰 구매한 문서 ({purchases.length})
+        </h2>
 
-        {/* 구매 통계 */}
-        <div className="card">
-          <div style={{ fontSize: 40, marginBottom: 12 }}>📚</div>
-          <h2 className="h2">구매 통계</h2>
-          <div style={{ fontSize: 24, fontWeight: 700, marginBottom: 8 }}>0개</div>
-          <p className="lead">아직 구매한 문서가 없습니다</p>
-        </div>
-      </div>
-
-      {/* 거래 내역 */}
-      <div className="card">
-        <h2 className="h2">📋 거래 내역</h2>
-        <div style={{ padding: 40, textAlign: 'center', color: '#b0b8cc' }}>
-          거래 내역이 없습니다
-        </div>
+        {purchases.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: 60,
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: 16,
+            border: '1px solid rgba(255,255,255,0.05)',
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: 16 }}>📭</div>
+            <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
+              아직 구매한 문서가 없습니다
+            </div>
+          </div>
+        ) : (
+          <div style={{
+            display: 'grid',
+            gap: 16,
+          }}>
+            {purchases.map((purchase) => (
+              <div
+                key={purchase.id}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
+                  borderRadius: 16,
+                  padding: 24,
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}
+              >
+                <div style={{ flex: 1 }}>
+                  <h3 style={{
+                    fontSize: '1.3rem',
+                    fontWeight: 600,
+                    marginBottom: 8,
+                    color: 'var(--text-primary)',
+                  }}>
+                    📄 {purchase.documents.title}
+                  </h3>
+                  <div style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
+                    {purchase.documents.description}
+                  </div>
+                  <div style={{
+                    display: 'flex',
+                    gap: 16,
+                    fontSize: '0.85rem',
+                    color: 'var(--text-secondary)',
+                    marginTop: 12,
+                  }}>
+                    <div>💳 {purchase.total_price} ETH</div>
+                    <div>📦 수량: {purchase.quantity}</div>
+                    <div>📅 {new Date(purchase.purchased_at).toLocaleDateString()}</div>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleDownload(purchase.documents.file_url, purchase.documents.title)}
+                  style={{
+                    padding: '12px 24px',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                  }}
+                >
+                  📥 다운로드
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );
