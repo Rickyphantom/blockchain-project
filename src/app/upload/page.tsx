@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useAppState } from '@/context/AppState';
 import { registerDocument } from '@/lib/useDocuTrade';
 import { uploadDocument, uploadPdfFile } from '@/lib/supabase';
 import { getSigner } from '@/lib/web3';
@@ -45,11 +46,8 @@ const ALLOWED_EXTENSIONS = {
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
 
 export default function UploadPage() {
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
-  const [pricePerToken, setPricePerToken] = useState('');
+  const { uploadForm, setUploadForm } = useAppState();
   const [file, setFile] = useState<File | null>(null);
-  const [amount, setAmount] = useState('1');
   const [loading, setLoading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress] = useState(0);
@@ -121,8 +119,12 @@ export default function UploadPage() {
     validateAndSetFile(droppedFile);
   };
 
+  // 예: 제목 입력 핸들러
+  const onTitleChange = (v: string) => setUploadForm({ title: v });
+
+  // 업로드 버튼 클릭 시 uploadForm 사용
   const handleUpload = async () => {
-    if (!title || !description || !pricePerToken || !file) {
+    if (!uploadForm.title || !file) {
       alert('⚠️ 모든 필드를 입력해주세요');
       return;
     }
@@ -146,10 +148,10 @@ export default function UploadPage() {
       setProgress(66);
       const txHash = await registerDocument(
         newDocId,
-        Number(amount),
-        title,
+        Number(uploadForm.amount),
+        uploadForm.title,
         fileUrl,
-        description
+        uploadForm.description
       );
       console.log('✅ 블록체인 등록 완료:', txHash);
 
@@ -158,12 +160,12 @@ export default function UploadPage() {
       setProgress(90);
       await uploadDocument(
         newDocId,
-        title,
+        uploadForm.title,
         seller,
         fileUrl,
-        description,
-        pricePerToken,
-        Number(amount)
+        uploadForm.description,
+        uploadForm.pricePerToken,
+        Number(uploadForm.amount)
       );
       console.log('✅ DB 저장 완료');
 
@@ -174,11 +176,13 @@ export default function UploadPage() {
       );
 
       // 폼 초기화
-      setTitle('');
-      setDescription('');
-      setPricePerToken('');
+      setUploadForm({
+        title: '',
+        description: '',
+        pricePerToken: '',
+        amount: '1',
+      });
       setFile(null);
-      setAmount('1');
       setProgress(0);
     } catch (error) {
       console.error('업로드 실패:', error);
@@ -229,8 +233,8 @@ export default function UploadPage() {
             </label>
             <input
               type="text"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              value={uploadForm.title}
+              onChange={(e) => onTitleChange(e.target.value)}
               placeholder="예: 스마트 컨트랙트 개발 가이드"
               style={{
                 width: '100%',
@@ -249,8 +253,8 @@ export default function UploadPage() {
               📝 설명 <span style={{ color: '#dc3545' }}>*</span>
             </label>
             <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              value={uploadForm.description}
+              onChange={(e) => setUploadForm({ description: e.target.value })}
               placeholder="문서에 대한 상세 설명을 작성해주세요"
               style={{
                 width: '100%',
@@ -368,8 +372,8 @@ export default function UploadPage() {
               </label>
               <input
                 type="number"
-                value={pricePerToken}
-                onChange={(e) => setPricePerToken(e.target.value)}
+                value={uploadForm.pricePerToken}
+                onChange={(e) => setUploadForm({ pricePerToken: e.target.value })}
                 placeholder="0.01"
                 step="0.001"
                 min="0"
@@ -390,8 +394,8 @@ export default function UploadPage() {
               </label>
               <input
                 type="number"
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                value={uploadForm.amount}
+                onChange={(e) => setUploadForm({ amount: e.target.value })}
                 placeholder="1"
                 min="1"
                 style={{
@@ -407,7 +411,7 @@ export default function UploadPage() {
           </div>
 
           {/* 예상 정보 */}
-          {pricePerToken && amount && (
+          {uploadForm.pricePerToken && uploadForm.amount && (
             <div
               style={{
                 padding: '15px',
@@ -422,7 +426,7 @@ export default function UploadPage() {
                 <strong>📊 예상 정보:</strong>
               </div>
               <div>
-                • 총 발행액: <strong>{(parseFloat(pricePerToken) * parseInt(amount)).toFixed(4)} ETH</strong>
+                • 총 발행액: <strong>{(parseFloat(uploadForm.pricePerToken) * parseInt(uploadForm.amount)).toFixed(4)} ETH</strong>
               </div>
             </div>
           )}

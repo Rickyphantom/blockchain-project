@@ -1,7 +1,8 @@
 // src/app/layout.tsx
 import type { Metadata } from 'next';
-import Link from 'next/link';
-import './globals.css'; // 전역 CSS 임포트
+import './globals.css';
+import { AppStateProvider } from '@/context/AppState';
+import NavBar from '@/components/NavBar';
 
 export const metadata: Metadata = {
   title: 'File ↔ Coin Platform',
@@ -12,23 +13,12 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="ko">
       <body>
-        <header className="header">
-          <div className="brand">File ↔ Coin</div>
-          <nav className="nav">
-            <Link href="/">홈</Link>
-            <Link href="/upload">등록</Link>
-            <Link href="/market">마켓</Link>
-          </nav>
-        </header>
-
-        <main className="container">{children}</main>
-
-        {/* 배경 장식 (DOM만 남기고, 스타일은 globals.css로) */}
-        <div className="bgOrbs">
-          <div className="orb orb1" />
-          <div className="orb orb2" />
-          <div className="orb orb3" />
-        </div>
+        <AppStateProvider>
+          <NavBar />
+          <div style={{ paddingTop: 20 }}>
+            <div className="app-container">{children}</div>
+          </div>
+        </AppStateProvider>
       </body>
     </html>
   );

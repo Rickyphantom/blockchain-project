@@ -1,51 +1,114 @@
 :root{
-  --bg:#0a0f1a; --panel:#0f1524cc; --stroke:#2a3550;
-  --text:#e6eefc; --muted:#9bb0d4; --accent:#3ea0ff; --accent2:#6be6ff; --danger:#ff6470;
+  --bg: #0f1724; /* 진한 배경 */
+  --surface: #0f1728; /* 카드 표면 조금 밝게 */
+  --card-bg: #0b1220;
+  --text: #e6eef8; /* 본문 글씨 밝게 */
+  --muted: #9aa9c7;
+  --accent: #4f9dff; /* 주요 색상 */
+  --accent-2: #7be4a2;
+  --danger: #ff6b6b;
+  --shadow: 0 8px 24px rgba(2,6,23,0.6);
+  --radius: 12px;
+  --glass: rgba(255,255,255,0.03);
 }
 
-html, body { height: 100%; }
-body {
-  margin:0; color:var(--text);
-  font-family: ui-sans-serif, system-ui, -apple-system, 'Noto Sans KR', Segoe UI, Roboto, sans-serif;
-  background: radial-gradient(1200px 800px at 10% 10%, #0e1a2b 0%, #0a0f1a 60%, #080c16 100%);
+/* 전역 레이아웃 */
+html,body,#root,#__next {
+  height: 100%;
+}
+body{
+  margin:0;
+  font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  background: linear-gradient(180deg,var(--bg), #071022 120%);
+  color: var(--text);
+  -webkit-font-smoothing:antialiased;
+  -moz-osx-font-smoothing:grayscale;
+  line-height:1.45;
 }
 
-.header {
-  max-width: 1000px; margin: 0 auto; padding: 18px 16px;
-  display:flex; justify-content:space-between; align-items:center;
+/* 컨테이너 중앙 정렬 */
+.app-container{
+  max-width:1200px;
+  margin:28px auto;
+  padding:24px;
+  box-sizing:border-box;
 }
-.brand {
-  font-weight:800; font-size:22px;
-  background: linear-gradient(90deg,var(--accent),var(--accent2));
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-}
-.nav { display:flex; gap:14px; }
-.nav a { color: var(--text); text-decoration:none; opacity:.9 }
-.nav a:hover { color: var(--accent) }
-.container { max-width: 1000px; margin: 18px auto 80px; padding: 0 16px; position: relative; z-index: 1; }
 
-.card {
-  background: var(--panel); border:1px solid var(--stroke); border-radius: 16px;
-  padding: 18px; box-shadow: 0 10px 40px rgba(8,12,22,.5), inset 0 1px 0 rgba(255,255,255,.03);
-  backdrop-filter: blur(10px);
+/* 카드 컴포넌트 */
+.card{
+  background: linear-gradient(180deg,var(--card-bg), rgba(10,18,30,0.9));
+  border: 1px solid rgba(255,255,255,0.04);
+  border-radius: var(--radius);
+  padding:18px;
+  box-shadow: var(--shadow);
+  color:var(--text);
 }
-.label{ font-size:12px; color:var(--muted); margin-bottom:6px; }
-.mono{ font-family: ui-monospace, Menlo, Consolas, monospace; }
 
+/* 헤더/타이틀 */
+.h1{ font-size:22px; font-weight:700; margin:0 0 8px 0; color:var(--text) }
+.h2{ font-size:18px; font-weight:700; margin:0 0 12px 0; color:var(--text) }
+.lead{ color:var(--muted); font-size:13px; }
+
+/* 버튼 */
 .btn{
-  appearance:none; border:0; cursor:pointer; padding:12px 16px; border-radius:12px;
-  font-weight:700; letter-spacing:.2px; transition: transform .05s ease, box-shadow .2s ease, background .2s ease;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  padding:10px 14px;
+  border-radius:10px;
+  border:none;
+  font-weight:600;
+  cursor:pointer;
+  transition:all .12s ease;
 }
-.btn.primary{ color:#07101b; background:linear-gradient(180deg,#6be6ff,#3ea0ff); box-shadow:0 6px 20px rgba(62,160,255,.35); }
-.btn.ghost{ color:var(--text); background:linear-gradient(180deg,#131b30,#0d1426); border:1px solid var(--stroke); }
-.error{
-  margin-top:12px; color:var(--danger); background:rgba(255,100,112,.08);
-  border:1px solid rgba(255,100,112,.25); padding:10px 12px; border-radius:12px; font-size:14px;
+.btn:active{ transform:translateY(1px); }
+.btn-primary{
+  background: linear-gradient(90deg,var(--accent), #3ab0ff);
+  color:#021026;
+  box-shadow: 0 6px 18px rgba(79,157,255,0.12);
+}
+.btn-secondary{
+  background: transparent;
+  border:1px solid rgba(255,255,255,0.06);
+  color:var(--text);
 }
 
-/* 배경 장식 */
-.bgOrbs{ position: fixed; inset: 0; pointer-events:none; overflow:hidden; z-index: 0;}
-.orb{ position:absolute; filter: blur(60px); opacity:.35; border-radius:50%; mix-blend-mode: screen; }
-.orb1{ width:460px; height:460px; left:-80px; top:-80px; background: radial-gradient(closest-side, #7ed3ff, transparent); }
-.orb2{ width:520px; height:520px; right:-120px; top:40%; background: radial-gradient(closest-side, #8fb0ff, transparent); }
-.orb3{ width:380px; height:380px; left:40%; bottom:-140px; background: radial-gradient(closest-side, #c6d6ff, transparent); }
+/* 가격 카드 */
+.price-card{
+  background: linear-gradient(90deg, rgba(79,157,255,0.06), rgba(123,228,162,0.03));
+  border-left:4px solid var(--accent);
+  padding:12px;
+  border-radius:8px;
+  color:var(--text);
+}
+
+/* 입력, 검색 */
+.input{
+  width:100%;
+  padding:10px 12px;
+  border-radius:10px;
+  border:1px solid rgba(255,255,255,0.04);
+  background:var(--glass);
+  color:var(--text);
+  outline:none;
+}
+.input:focus{ box-shadow:0 6px 18px rgba(79,157,255,0.06); border-color:var(--accent); }
+
+/* 텍스트 줄임/단어깨기 */
+.truncate{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.break{ word-break:break-word; }
+
+/* 작은 안내/태그 */
+.tag{ font-size:12px; color:var(--muted); }
+
+/* 그리드 카드 반응형 */
+.grid{
+  display:grid;
+  gap:20px;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+}
+
+/* 알림 */
+.alert-success{ background: rgba(123,228,162,0.07); border:1px solid rgba(123,228,162,0.08); color:var(--accent-2); padding:12px; border-radius:8px; }
+.alert-error{ background: rgba(255,107,107,0.06); border:1px solid rgba(255,107,107,0.08); color:var(--danger); padding:12px; border-radius:8px; }

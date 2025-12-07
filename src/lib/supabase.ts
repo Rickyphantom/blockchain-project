@@ -5,52 +5,37 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ✅ 파일 업로드 (한글 지원)
+// 한글 포함 원본은 메타로 보존하고, 업로드 키는 안전하게 생성
 export async function uploadPdfFile(file: File, docId: number): Promise<string> {
   try {
-    // 원본 파일명 보존 (한글 포함)
     const originalName = file.name;
-    const fileExtension = originalName.split('.').pop() || 'file';
-    
-    // URL safe하게 인코딩
-    const encodedFileName = encodeURIComponent(originalName);
+    const ext = originalName.split('.').pop() || 'bin';
+    // 1) URL-인코딩 후 '%' 제거 -> 안전 문자(영숫자, _, - , . )만 남김
+    const encoded = encodeURIComponent(originalName).replace(/%/g, '_');
+    // 2) 또 안전하게: 연속 언더스코어/슬래시 제거, 길이 제한 적용
+    const safeName = encoded.replace(/\/+/g, '_').replace(/[^a-zA-Z0-9._-]/g, '_').slice(0, 180);
     const timestamp = Date.now();
-    const randomId = Math.random().toString(36).substring(2, 8);
-    
-    // 저장 경로: files/docId_timestamp_randomId_encodedFileName
-    const fileName = `${docId}_${timestamp}_${randomId}_${encodedFileName}`;
+    const rand = Math.random().toString(36).slice(2, 8);
+    const key = `files/${docId}_${timestamp}_${rand}_${safeName}.${ext}`.replace(/\.\./g, '.');
 
-    console.log('📤 업로드 시작:', originalName);
-    console.log('💾 저장 경로:', fileName);
+    console.log('upload key:', key, 'original:', originalName);
 
     const { data, error } = await supabase.storage
       .from('documents')
-      .upload(`files/${fileName}`, file, {
-        cacheControl: '3600',
-        upsert: false,
-      });
+      .upload(key, file, { cacheControl: '3600', upsert: false });
 
     if (error) {
-      console.error('❌ 업로드 오류:', error);
+      console.error('upload error:', error);
       throw new Error(`파일 업로드 실패: ${error.message}`);
     }
 
-    console.log('✅ 파일 업로드 완료:', data);
+    const { data: publicUrlData } = supabase.storage.from('documents').getPublicUrl(key);
+    if (!publicUrlData?.publicUrl) throw new Error('공개 URL 생성 실패');
 
-    // 공개 URL 생성
-    const { data: publicUrlData } = supabase.storage
-      .from('documents')
-      .getPublicUrl(`files/${fileName}`);
-
-    if (!publicUrlData || !publicUrlData.publicUrl) {
-      throw new Error('공개 URL 생성 실패');
-    }
-
-    console.log('✅ 공개 URL 생성 완료:', publicUrlData.publicUrl);
     return publicUrlData.publicUrl;
-  } catch (error) {
-    console.error('파일 업로드 중 오류 발생:', error);
-    throw error;
+  } catch (err) {
+    console.error('uploadPdfFile error:', err);
+    throw err;
   }
 }
 
