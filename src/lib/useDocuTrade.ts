@@ -10,30 +10,33 @@ export interface DocumentInfo {
   author: string;
 }
 
-export async function registerDocument(
-  id: number,
+export const registerDocument = async (
+  docId: number,
   amount: number,
   title: string,
-  pdfUrl: string,
+  fileUrl: string,
   description: string
-): Promise<string> {
+): Promise<string> => {
   const signer = await getSigner();
-  const contract = new Contract(
-    DOCTRADE_CONTRACT_ADDRESS,
-    DOCTRADE_ABI,
-    signer
-  );
+  const contract = new Contract(DOCTRADE_CONTRACT_ADDRESS, DOCTRADE_ABI, signer);
 
-  const tx = await contract.registerDocument(
-    id,
-    amount,
-    title,
-    pdfUrl,
-    description
-  );
-  const receipt = await tx.wait();
-  return receipt?.transactionHash || '';
-}
+  console.log('Registering document:', { docId, amount, title, fileUrl, description });
+
+  // 빈 문자열 체크
+  if (!title || title.trim() === '') {
+    throw new Error('제목이 비어있습니다');
+  }
+  if (!description || description.trim() === '') {
+    throw new Error('설명이 비어있습니다');
+  }
+  if (!fileUrl || fileUrl.trim() === '') {
+    throw new Error('파일 URL이 비어있습니다');
+  }
+
+  const tx = await contract.registerDocument(docId, amount, title, fileUrl, description);
+  await tx.wait();
+  return tx.hash;
+};
 
 // 판매 가격 설정 (Approval 필요)
 export async function setSalePrice(

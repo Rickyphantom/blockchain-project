@@ -65,7 +65,7 @@ export default function UploadPage() {
   // 업로드 핸들러
   const handleUpload = async (): Promise<void> => {
     if (!title || !description || !pricePerToken || !file) {
-      alert('제목과 설명을 입력해주세요');
+      alert('모든 필드를 입력해주세요');
       return;
     }
 
@@ -75,14 +75,19 @@ export default function UploadPage() {
       const seller = await signer.getAddress();
       const newDocId = Math.floor(Date.now() / 1000);
 
+      // 1. 파일 업로드
       const fileUrl = await uploadPdfFile(file, newDocId);
+      
+      // 2. 블록체인에 등록 (빈 문자열 대신 실제 값 전달)
       const txHash = await registerDocument(
         newDocId,
         Number(amount),
-        title,
+        title || "Untitled", // 빈 문자열 방지
         fileUrl,
-        description
+        description || "No description" // 빈 문자열 방지
       );
+      
+      // 3. DB에 저장
       await uploadDocument(
         newDocId,
         title,
