@@ -22,7 +22,11 @@ export default function NavBar() {
         return;
       }
 
-      const accounts = (await ethereum.request({ method: 'eth_requestAccounts' })) as string[];
+      const accounts = await ethereum.request({ 
+        method: 'eth_requestAccounts',
+        params: []
+      }) as string[];
+      
       if (accounts && accounts.length > 0) {
         const signer = await getSigner();
         const addr = await signer.getAddress();
@@ -45,7 +49,11 @@ export default function NavBar() {
         const ethereum = (window as EthereumWindow).ethereum;
         if (!ethereum) return;
 
-        const accounts = (await ethereum.request({ method: 'eth_accounts' })) as string[];
+        const accounts = await ethereum.request({ 
+          method: 'eth_accounts',
+          params: []
+        }) as string[];
+        
         if (accounts && accounts.length > 0) {
           const signer = await getSigner();
           const addr = await signer.getAddress();

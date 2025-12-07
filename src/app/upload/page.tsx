@@ -71,32 +71,47 @@ export default function UploadPage() {
 
     try {
       setLoading(true);
+      
+      // Signer와 주소를 명확하게 가져오기
       const signer = await getSigner();
-      const seller = await signer.getAddress();
+      const sellerAddress = await signer.getAddress();
+      
+      console.log('Seller address:', sellerAddress);
+      
+      if (!sellerAddress || sellerAddress === '0x') {
+        throw new Error('지갑 주소를 가져올 수 없습니다. MetaMask를 확인해주세요.');
+      }
+
       const newDocId = Math.floor(Date.now() / 1000);
 
       // 1. 파일 업로드
+      console.log('1. Uploading file...');
       const fileUrl = await uploadPdfFile(file, newDocId);
+      console.log('File uploaded:', fileUrl);
       
-      // 2. 블록체인에 등록 (빈 문자열 대신 실제 값 전달)
+      // 2. 블록체인에 등록
+      console.log('2. Registering on blockchain...');
       const txHash = await registerDocument(
         newDocId,
         Number(amount),
-        title || "Untitled", // 빈 문자열 방지
+        title,
         fileUrl,
-        description || "No description" // 빈 문자열 방지
+        description
       );
+      console.log('Transaction hash:', txHash);
       
       // 3. DB에 저장
+      console.log('3. Saving to database...');
       await uploadDocument(
         newDocId,
         title,
-        seller,
+        sellerAddress,
         fileUrl,
         description,
         pricePerToken,
         Number(amount)
       );
+      console.log('Saved to database');
 
       alert(`✅ 업로드 성공!\n\n📄 Document ID: ${newDocId}\n⛓️ TX: ${txHash.slice(0, 20)}...`);
 

@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useEffect, useState } from 'react';
-import { getSigner, EthereumWindow } from '@/lib/web3';
+import { EthereumWindow } from '@/lib/web3';
 
 export default function ConnectCard() {
   const [address, setAddress] = useState<string | null>(null);
@@ -13,19 +13,20 @@ export default function ConnectCard() {
         const eth = (window as EthereumWindow).ethereum;
         if (!eth) return;
 
-        // 현재 계정 확인
-        const accounts = (await eth.request({ method: 'eth_accounts' })) as string[];
+        const accounts = await eth.request({ 
+          method: 'eth_accounts',
+          params: []
+        }) as string[];
+        
         if (accounts?.[0]) {
           setAddress(accounts[0]);
         }
 
-        // 계정 변경 리스너
         eth.on?.('accountsChanged', (accounts: unknown) => {
           const accs = accounts as string[];
           setAddress(accs?.[0] ?? null);
         });
 
-        // 체인 변경 리스너
         eth.on?.('chainChanged', (chainId: unknown) => {
           console.log('Chain changed:', chainId);
         });
