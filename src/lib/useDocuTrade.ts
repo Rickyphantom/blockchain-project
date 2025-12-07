@@ -2,14 +2,28 @@ import { ethers } from 'ethers';
 import { getSigner } from './web3';
 import DocuTradeABI from '@/contracts/DocuTrade.json';
 
-const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+
+// 컨트랙트 주소 유효성 검사
+if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
+  console.error('❌ CONTRACT_ADDRESS가 설정되지 않았습니다!');
+  console.error('📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.');
+}
 
 export async function getDocuTradeContract() {
+  if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
+    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
+  }
+  
   const signer = await getSigner();
   return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, signer);
 }
 
 export async function getDocuTradeContractReadOnly() {
+  if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
+    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
+  }
+  
   const provider = new ethers.BrowserProvider((window as any).ethereum);
   return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, provider);
 }
@@ -138,7 +152,7 @@ export async function getContractInfo() {
       name,
       symbol,
       totalDocs: Number(totalDocs),
-      address: CONTRACT_ADDRESS,
+      address: CONTRACT_ADDRESS || '',
     };
   } catch (error) {
     console.error('컨트랙트 정보 조회 실패:', error);
