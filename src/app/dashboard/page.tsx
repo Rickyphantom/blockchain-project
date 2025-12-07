@@ -5,6 +5,7 @@ import { getSigner } from '@/lib/web3';
 import { supabase } from '@/lib/supabase';
 import { getUserNFTs, getDocumentByToken } from '@/lib/useDocuTrade';
 import NFTCertificate from '@/components/NFTCertificate';
+import { getUserPurchases } from '@/lib/supabase';
 
 interface PurchasedDocument {
   tokenId: number;
@@ -78,32 +79,19 @@ export default function DashboardPage() {
   // 구매 목록 로드
   const loadPurchases = async (address: string) => {
     try {
-      const { data, error } = await supabase
-        .from('purchases')
-        .select(`
-          *,
-          documents (
-            title,
-            description,
-            price_per_token,
-            file_url,
-            seller
-          )
-        `)
-        .eq('buyer', address.toLowerCase())
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
+      const data = await getUserPurchases(address);
 
       const purchases = (data || []).map((p: any) => ({
-        tokenId: p.token_id,
+        tokenId: p.id, // purchases의 id를 tokenId로 사용
         docId: p.doc_id,
         title: p.documents?.title || 'Unknown',
         description: p.documents?.description || '',
-        price: p.documents?.price_per_token || '0',
+        price: p.total_price,
         fileUrl: p.documents?.file_url || '',
         seller: p.documents?.seller || '',
-        purchaseDate: p.created_at,
+        purchaseDate: p.purchased_at,
+        quantity: p.quantity,
+        txHash: p.tx_hash,
       }));
 
       setPurchasedDocs(purchases);
@@ -151,7 +139,12 @@ export default function DashboardPage() {
         .eq('seller', address.toLowerCase())
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('판매 목록 로드 에러:', error);
+        throw error;
+      }
+      
+      console.log('로드된 판매 문서:', data);
       setSalesDocs(data || []);
     } catch (error) {
       console.error('판매 목록 로드 실패:', error);
@@ -647,5 +640,6 @@ export default function DashboardPage() {
         />
       )}
     </div>
+    
   );
 }

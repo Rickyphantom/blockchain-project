@@ -54,22 +54,34 @@ export default function UploadPage() {
       setUploading(true);
 
       // 1. 지갑 연결 확인
+      console.log('1️⃣ 지갑 연결 확인...');
       const signer = await getSigner();
       const address = await signer.getAddress();
-      console.log('판매자 주소:', address);
+      console.log('✅ 판매자 주소:', address);
 
       // 2. 블록체인에 문서 등록
-      console.log('블록체인 등록 시작...');
+      console.log('2️⃣ 블록체인 등록 시작...');
       const docId = await registerDocument(title, 'temp', description, price, amountNum);
-      console.log('문서 ID:', docId);
+      console.log('✅ 문서 ID:', docId);
 
       // 3. Supabase Storage에 파일 업로드
-      console.log('파일 업로드 시작...');
+      console.log('3️⃣ 파일 업로드 시작...');
       const fileUrl = await uploadPdfFile(file, docId);
-      console.log('파일 URL:', fileUrl);
+      console.log('✅ 파일 URL:', fileUrl);
 
       // 4. Supabase DB에 문서 정보 저장
-      console.log('DB 저장 시작...');
+      console.log('4️⃣ DB 저장 시작...');
+      console.log('저장할 데이터:', {
+        doc_id: docId,
+        title: title,
+        description: description,
+        seller: address.toLowerCase(),
+        file_url: fileUrl,
+        price_per_token: price,
+        amount: amountNum,
+        is_active: true,
+      });
+
       const { data, error } = await supabase.from('documents').insert([
         {
           doc_id: docId,
@@ -84,11 +96,12 @@ export default function UploadPage() {
       ]).select();
 
       if (error) {
-        console.error('DB 저장 실패:', error);
-        throw error;
+        console.error('❌ DB 저장 실패:', error);
+        console.error('에러 상세:', JSON.stringify(error, null, 2));
+        throw new Error(`DB 저장 실패: ${error.message || JSON.stringify(error)}`);
       }
 
-      console.log('DB 저장 성공:', data);
+      console.log('✅ DB 저장 성공:', data);
 
       alert(`✅ 업로드 완료!\n\n문서 ID: ${docId}\n제목: ${title}\n가격: ${price} ETH\n수량: ${amountNum}개`);
 
@@ -104,9 +117,26 @@ export default function UploadPage() {
         window.location.href = '/dashboard';
       }, 1000);
 
-    } catch (error) {
-      console.error('업로드 실패:', error);
-      alert(`❌ 업로드 실패: ${error instanceof Error ? error.message : String(error)}`);
+    } catch (error: any) {
+      console.error('❌ 업로드 실패:', error);
+      console.error('에러 타입:', typeof error);
+      console.error('에러 내용:', error);
+      
+      let errorMessage = '알 수 없는 오류';
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.error?.message) {
+        errorMessage = error.error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      } else {
+        errorMessage = JSON.stringify(error);
+      }
+      
+      alert(`❌ 업로드 실패:\n\n${errorMessage}\n\n자세한 내용은 콘솔을 확인하세요.`);
     } finally {
       setUploading(false);
     }
