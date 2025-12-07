@@ -1,141 +1,193 @@
 import { ethers } from 'ethers';
-import { getSigner, getProvider } from './web3';
+import { getSigner } from './web3';
+import DocuTradeABI from '@/contracts/DocuTrade.json';
 
-const DOCUTRADE_ADDRESS = process.env.NEXT_PUBLIC_DOCUTRADE_ADDRESS || '';
+const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS!;
 
-// 스마트 컨트랙트 ABI (필요한 함수만)
-const DocuTradeABI = [
-  'function registerDocument(uint256 docId, uint256 amount, string memory title, string memory fileUrl, string memory description) public',
-  'function buyDocuments(uint256 docId, uint256 quantity) public payable',
-];
-
-export interface DocumentInfo {
-  id: number;
-  title: string;
-  pdfUrl: string;
-  description: string;
-  author: string;
+export async function getDocuTradeContract() {
+  const signer = await getSigner();
+  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, signer);
 }
 
-export const registerDocument = async (
-  docId: number,
-  amount: number,
+export async function getDocuTradeContractReadOnly() {
+  const provider = new ethers.BrowserProvider((window as any).ethereum);
+  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, provider);
+}
+
+// 문서 등록
+export async function registerDocument(
   title: string,
   fileUrl: string,
-  description: string
-): Promise<string> => {
+  description: string,
+  price: string,
+  amount: number
+) {
   try {
-    console.log('registerDocument called with:', { docId, amount, title, fileUrl, description });
+    const contract = await getDocuTradeContract();
+    const priceInWei = ethers.parseEther(price);
 
-    // 1. Signer 가져오기
-    const signer = await getSigner();
-    
-    // 2. 주소 확인
-    const sellerAddress = await signer.getAddress();
-    console.log('Seller address:', sellerAddress);
-
-    if (!sellerAddress || !ethers.isAddress(sellerAddress)) {
-      throw new Error(`유효하지 않은 주소: ${sellerAddress}`);
-    }
-
-    // 3. 컨트랙트 인스턴스 생성 (Signer 사용)
-    const contract = new ethers.Contract(DOCUTRADE_ADDRESS, DocuTradeABI, signer);
-    
-    console.log('Contract address:', DOCUTRADE_ADDRESS);
-    console.log('Calling registerDocument...');
-
-    // 4. 함수 호출 (입력값 검증)
-    if (!title || title.trim() === '') throw new Error('제목이 비어있습니다');
-    if (!fileUrl || fileUrl.trim() === '') throw new Error('파일 URL이 비어있습니다');
-    if (!description || description.trim() === '') throw new Error('설명이 비어있습니다');
-
-    // 5. 트랜잭션 전송
     const tx = await contract.registerDocument(
-      docId,
-      amount,
       title,
       fileUrl,
-      description
+      description,
+      priceInWei,
+      amount
     );
 
-    console.log('Transaction sent:', tx.hash);
-
-    // 6. 트랜잭션 확인 대기
+    console.log('트랜잭션 전송:', tx.hash);
     const receipt = await tx.wait();
-    console.log('Transaction confirmed:', receipt);
+    console.log('트랜잭션 완료:', receipt);
 
     return tx.hash;
   } catch (error) {
-    console.error('registerDocument error:', error);
+    console.error('문서 등록 실패:', error);
     throw error;
   }
-};
+}
 
-export const buyDocuments = async (
+// 문서 구매
+export async function buyDocuments(
   docId: number,
   quantity: number,
   pricePerToken: string
-): Promise<string> => {
+) {
   try {
-    const signer = await getSigner();
-    const contract = new ethers.Contract(DOCUTRADE_ADDRESS, DocuTradeABI, signer);
-
-    const totalPrice = ethers.parseEther((parseFloat(pricePerToken) * quantity).toString());
+    const contract = await getDocuTradeContract();
+    const totalPrice = ethers.parseEther(pricePerToken) * BigInt(quantity);
 
     const tx = await contract.buyDocuments(docId, quantity, {
       value: totalPrice,
     });
 
-    await tx.wait();
+    console.log('구매 트랜잭션:', tx.hash);
+    const receipt = await tx.wait();
+    console.log('구매 완료:', receipt);
+
     return tx.hash;
   } catch (error) {
-    console.error('buyDocuments error:', error);
+    console.error('구매 실패:', error);
     throw error;
   }
-};
-
-// 문서 정보 조회
-export async function getDocumentInfo(id: number): Promise<DocumentInfo> {
-  const provider = await getProvider();
-  const contract = new ethers.Contract(
-    DOCUTRADE_ADDRESS,
-    DocuTradeABI,
-    provider
-  );
-
-  const [title, pdfUrl, description, author] =
-    await contract.getDocumentInfo(id);
-  return { id, title, pdfUrl, description, author };
 }
 
-// 판매 가격 조회
-export async function getPrice(
-  id: number,
-  seller: string
-): Promise<string> {
-  const provider = await getProvider();
-  const contract = new ethers.Contract(
-    DOCUTRADE_ADDRESS,
-    DocuTradeABI,
-    provider
-  );
-
-  const price = await contract.getPrice(id, seller);
-  return price.toString();
+// 사용자의 모든 NFT 조회
+export async function getUserNFTs(userAddress: string): Promise<number[]> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const nfts = await contract.getUserNFTs(userAddress);
+    return nfts.map((id: any) => Number(id));
+  } catch (error) {
+    console.error('NFT 조회 실패:', error);
+    return [];
+  }
 }
 
-// 사용자 문서 잔액 확인
-export async function getBalance(
-  userAddress: string,
-  id: number
-): Promise<number> {
-  const provider = await getProvider();
-  const contract = new ethers.Contract(
-    DOCUTRADE_ADDRESS,
-    DocuTradeABI,
-    provider
-  );
+// NFT로 문서 정보 조회
+export async function getDocumentByToken(tokenId: number) {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const doc = await contract.getDocumentByToken(tokenId);
+    
+    return {
+      docId: Number(doc.docId),
+      title: doc.title,
+      fileUrl: doc.fileUrl,
+      description: doc.description,
+      seller: doc.seller,
+      pricePerToken: ethers.formatEther(doc.pricePerToken),
+      amount: Number(doc.amount),
+      isActive: doc.isActive,
+    };
+  } catch (error) {
+    console.error('문서 조회 실패:', error);
+    throw error;
+  }
+}
 
-  const balance = await contract.balanceOf(userAddress, id);
-  return Number(balance);
+// 문서 소유 여부 확인
+export async function ownsDocument(userAddress: string, docId: number): Promise<boolean> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    return await contract.ownsDocument(userAddress, docId);
+  } catch (error) {
+    console.error('소유권 확인 실패:', error);
+    return false;
+  }
+}
+
+// NFT 소유자 조회
+export async function getNFTOwner(tokenId: number): Promise<string | null> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    return await contract.ownerOf(tokenId);
+  } catch (error) {
+    console.error('NFT 소유자 조회 실패:', error);
+    return null;
+  }
+}
+
+// 컨트랙트 정보 조회
+export async function getContractInfo() {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const name = await contract.name();
+    const symbol = await contract.symbol();
+    const totalDocs = await contract.getTotalDocuments();
+    
+    return {
+      name,
+      symbol,
+      totalDocs: Number(totalDocs),
+      address: CONTRACT_ADDRESS,
+    };
+  } catch (error) {
+    console.error('컨트랙트 정보 조회 실패:', error);
+    throw error;
+  }
+}
+
+// 사용자의 문서 목록 조회
+export async function getUserDocuments(userAddress: string): Promise<number[]> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const docs = await contract.getUserDocuments(userAddress);
+    return docs.map((id: any) => Number(id));
+  } catch (error) {
+    console.error('사용자 문서 조회 실패:', error);
+    return [];
+  }
+}
+
+// 문서 상세 정보 조회
+export async function getDocument(docId: number) {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const doc = await contract.getDocument(docId);
+    
+    return {
+      docId: Number(doc.docId),
+      title: doc.title,
+      fileUrl: doc.fileUrl,
+      description: doc.description,
+      seller: doc.seller,
+      pricePerToken: ethers.formatEther(doc.pricePerToken),
+      amount: Number(doc.amount),
+      isActive: doc.isActive,
+    };
+  } catch (error) {
+    console.error('문서 조회 실패:', error);
+    throw error;
+  }
+}
+
+// 전체 문서 수 조회
+export async function getTotalDocuments(): Promise<number> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const total = await contract.getTotalDocuments();
+    return Number(total);
+  } catch (error) {
+    console.error('전체 문서 수 조회 실패:', error);
+    return 0;
+  }
 }

@@ -4,13 +4,28 @@ import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { getSigner, EthereumWindow } from '@/lib/web3';
+import { ethers } from 'ethers';
 
 export default function NavBar() {
   const path = usePathname();
   const [address, setAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
+  const [balance, setBalance] = useState<string>('0');
 
   const short = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
+
+  const getBalance = async (addr: string) => {
+    try {
+      const signer = await getSigner();
+      const provider = signer.provider;
+      const balanceWei = await provider.getBalance(addr);
+      const balanceEth = ethers.formatEther(balanceWei);
+      setBalance(parseFloat(balanceEth).toFixed(4));
+    } catch (error) {
+      console.error('잔액 조회 실패:', error);
+      setBalance('0');
+    }
+  };
 
   const connect = async () => {
     try {
@@ -30,6 +45,7 @@ export default function NavBar() {
         const addr = await signer.getAddress();
         setAddress(addr);
         setIsConnected(true);
+        await getBalance(addr);
       }
     } catch (e) {
       console.error('connect error', e);
@@ -39,6 +55,7 @@ export default function NavBar() {
   const disconnect = () => {
     setAddress(null);
     setIsConnected(false);
+    setBalance('0');
   };
 
   useEffect(() => {
@@ -57,16 +74,19 @@ export default function NavBar() {
           const addr = await signer.getAddress();
           setAddress(addr);
           setIsConnected(true);
+          await getBalance(addr);
         }
 
-        ethereum.on?.('accountsChanged', (accs: unknown) => {
+        ethereum.on?.('accountsChanged', async (accs: unknown) => {
           const accounts = accs as string[];
           if (accounts && accounts.length > 0) {
             setAddress(accounts[0]);
             setIsConnected(true);
+            await getBalance(accounts[0]);
           } else {
             setAddress(null);
             setIsConnected(false);
+            setBalance('0');
           }
         });
       } catch (e) {
@@ -74,6 +94,17 @@ export default function NavBar() {
       }
     })();
   }, []);
+
+  // 주기적으로 잔액 업데이트 (선택사항)
+  useEffect(() => {
+    if (address && isConnected) {
+      const interval = setInterval(() => {
+        getBalance(address);
+      }, 10000); // 10초마다 업데이트
+
+      return () => clearInterval(interval);
+    }
+  }, [address, isConnected]);
 
   return (
     <nav style={{
@@ -118,6 +149,23 @@ export default function NavBar() {
       <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
         {isConnected && address ? (
           <>
+            {/* 잔액 표시 */}
+            <div style={{ 
+              background: 'rgba(79,157,255,0.1)', 
+              padding: '6px 12px', 
+              borderRadius: 8, 
+              fontSize: '12px',
+              border: '1px solid rgba(79,157,255,0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontWeight: 600,
+            }}>
+              <span>💰</span>
+              <span style={{ color: 'var(--accent)' }}>{balance} ETH</span>
+            </div>
+
+            {/* 주소 표시 */}
             <div style={{ 
               background: 'rgba(123,228,162,0.1)', 
               padding: '6px 10px', 
@@ -131,6 +179,8 @@ export default function NavBar() {
               <span>✅</span>
               <span style={{ fontWeight: 600 }}>{short(address)}</span>
             </div>
+
+            {/* 연결 해제 버튼 */}
             <button 
               className="btn btn-secondary" 
               onClick={disconnect} 

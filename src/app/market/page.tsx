@@ -18,17 +18,21 @@ interface Document {
   created_at: string;
 }
 
-interface Purchase {
-  doc_id: number;
-  buyer: string;
-}
-
 export default function Market() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<number | null>(null);
   const [userAddress, setUserAddress] = useState<string>('');
   const [ownedDocuments, setOwnedDocuments] = useState<Set<number>>(new Set());
+  const [showFaucetInfo, setShowFaucetInfo] = useState(false);
+
+  // Sepolia Faucet 링크들
+  const faucets = [
+    { name: 'PoW Faucet (CPU 채굴)', url: 'https://sepolia-faucet.pk910.de/#/', desc: '브라우저에서 CPU로 직접 채굴, 로그인 불필요' },
+    { name: 'Alchemy Faucet', url: 'https://sepoliafaucet.com/', desc: '로그인 필요, 0.5 ETH/일' },
+    { name: 'Infura Faucet', url: 'https://www.infura.io/faucet/sepolia', desc: '계정 필요, 0.5 ETH' },
+    { name: 'LearnWeb3 Faucet', url: 'https://learnweb3.io/faucets/sepolia', desc: '간단 등록, 0.5 ETH' },
+  ];
 
   // 사용자 지갑 주소 가져오기
   useEffect(() => {
@@ -90,7 +94,6 @@ export default function Market() {
         return;
       }
 
-      // 이미 구매한 문서인지 확인
       if (ownedDocuments.has(doc.doc_id)) {
         alert('⚠️ 이미 소유한 문서입니다');
         return;
@@ -120,9 +123,22 @@ export default function Market() {
         const updatedDocs = await getDocuments();
         setDocuments(updatedDocs);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('구매 실패:', error);
-      alert(`❌ 구매 실패: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // 잔액 부족 에러 감지
+      if (error.message?.includes('insufficient funds') || 
+          error.message?.includes('balance') ||
+          error.code === 'INSUFFICIENT_FUNDS') {
+        const needFaucet = confirm(
+          '❌ ETH 잔액이 부족합니다!\n\n무료로 Sepolia ETH를 받으시겠습니까?'
+        );
+        if (needFaucet) {
+          setShowFaucetInfo(true);
+        }
+      } else {
+        alert(`❌ 구매 실패: ${error.message || String(error)}`);
+      }
     } finally {
       setPurchasing(null);
     }
@@ -175,17 +191,181 @@ export default function Market() {
       background: 'linear-gradient(135deg, #0f1724 0%, #071022 100%)',
     }}>
       <div style={{ maxWidth: 1200, margin: '0 auto' }}>
-        <h1 style={{
-          fontSize: '2.5rem',
-          fontWeight: 700,
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: 40,
-          textAlign: 'center',
-          background: 'linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%)',
-          WebkitBackgroundClip: 'text',
-          WebkitTextFillColor: 'transparent',
+          flexWrap: 'wrap',
+          gap: 16,
         }}>
-          📚 문서 마켓플레이스
-        </h1>
+          <h1 style={{
+            fontSize: '2.5rem',
+            fontWeight: 700,
+            background: 'linear-gradient(135deg, var(--accent) 0%, var(--primary) 100%)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
+          }}>
+            📚 문서 마켓플레이스
+          </h1>
+
+          <button
+            className="btn btn-secondary"
+            onClick={() => setShowFaucetInfo(!showFaucetInfo)}
+            style={{
+              padding: '10px 20px',
+              fontSize: '0.95rem',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+            }}
+          >
+            ⛏️ 무료 ETH 받기
+          </button>
+        </div>
+
+        {/* Faucet 정보 패널 */}
+        {showFaucetInfo && (
+          <div style={{
+            background: 'linear-gradient(135deg, rgba(79,157,255,0.1), rgba(99,102,241,0.1))',
+            border: '2px solid rgba(79,157,255,0.3)',
+            borderRadius: 16,
+            padding: 24,
+            marginBottom: 32,
+            position: 'relative',
+          }}>
+            <button
+              onClick={() => setShowFaucetInfo(false)}
+              style={{
+                position: 'absolute',
+                top: 16,
+                right: 16,
+                background: 'rgba(255,255,255,0.1)',
+                border: 'none',
+                borderRadius: 8,
+                width: 32,
+                height: 32,
+                cursor: 'pointer',
+                fontSize: '1.2rem',
+                color: '#ffffff',
+              }}
+            >
+              ✕
+            </button>
+
+            <h3 style={{
+              fontSize: '1.5rem',
+              fontWeight: 600,
+              marginBottom: 16,
+              color: '#ffffff',
+              display: 'flex',
+              alignItems: 'center',
+              gap: 10,
+            }}>
+              ⛏️ Sepolia ETH 무료 받기
+            </h3>
+
+            <p style={{
+              fontSize: '0.95rem',
+              color: '#ffffff',
+              marginBottom: 20,
+              lineHeight: 1.6,
+            }}>
+              테스트넷 ETH가 필요하신가요? 아래 Faucet에서 무료로 받을 수 있습니다!<br />
+              <strong style={{ color: '#fbbf24' }}>⚠️ 지갑 주소를 복사해두세요: {userAddress ? `${userAddress.slice(0, 10)}...${userAddress.slice(-8)}` : '연결 필요'}</strong>
+            </p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 16,
+            }}>
+              {faucets.map((faucet, idx) => (
+                <a
+                  key={idx}
+                  href={faucet.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  style={{
+                    background: idx === 0 ? 'rgba(79,157,255,0.15)' : 'rgba(0,0,0,0.3)',
+                    border: idx === 0 ? '2px solid rgba(79,157,255,0.4)' : '1px solid rgba(255,255,255,0.1)',
+                    borderRadius: 12,
+                    padding: 16,
+                    textDecoration: 'none',
+                    transition: 'all 0.3s ease',
+                    display: 'block',
+                    position: 'relative',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = 'rgba(79,157,255,0.6)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = idx === 0 ? 'rgba(79,157,255,0.4)' : 'rgba(255,255,255,0.1)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  {idx === 0 && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 12,
+                      right: 12,
+                      background: 'rgba(79,157,255,0.3)',
+                      padding: '2px 8px',
+                      borderRadius: 12,
+                      fontSize: '0.7rem',
+                      fontWeight: 600,
+                      color: '#fbbf24',
+                    }}>
+                      추천 ⭐
+                    </div>
+                  )}
+                  <div style={{
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    color: '#fbbf24',
+                    marginBottom: 8,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}>
+                    {idx === 0 ? '⛏️' : '🔗'} {faucet.name}
+                  </div>
+                  <div style={{
+                    fontSize: '0.85rem',
+                    color: '#ffffff',
+                    lineHeight: 1.5,
+                  }}>
+                    {faucet.desc}
+                  </div>
+                </a>
+              ))}
+            </div>
+
+            <div style={{
+              marginTop: 20,
+              padding: 16,
+              background: 'rgba(255,193,7,0.1)',
+              border: '1px solid rgba(255,193,7,0.3)',
+              borderRadius: 8,
+            }}>
+              <div style={{
+                fontSize: '0.9rem',
+                color: '#ffffff',
+                lineHeight: 1.6,
+              }}>
+                💡 <strong style={{ color: '#fbbf24' }}>CPU 채굴 방법 (PoW Faucet):</strong><br />
+                1. 첫 번째 링크(PoW Faucet)를 클릭하여 사이트로 이동<br />
+                2. 지갑 주소를 입력하고 채굴 시작 버튼 클릭<br />
+                3. 브라우저에서 자동으로 CPU 채굴이 진행됩니다<br />
+                4. 일정량 채굴되면 자동으로 지갑에 전송됩니다<br />
+                5. 채굴 시간: 약 10~30분 (CPU 성능에 따라 다름) ⛏️<br />
+                <br />
+                <strong style={{ color: '#fbbf24' }}>⚡ 빠른 방법:</strong> 다른 Faucet들은 즉시 받을 수 있지만 로그인이 필요합니다.
+              </div>
+            </div>
+          </div>
+        )}
 
         {documents.length === 0 ? (
           <div style={{

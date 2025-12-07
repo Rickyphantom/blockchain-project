@@ -89,14 +89,14 @@ export default function UploadPage() {
       const fileUrl = await uploadPdfFile(file, newDocId);
       console.log('File uploaded:', fileUrl);
       
-      // 2. 블록체인에 등록
+      // 2. 블록체인에 등록 (매개변수 순서 수정)
       console.log('2. Registering on blockchain...');
       const txHash = await registerDocument(
-        newDocId,
-        Number(amount),
-        title,
-        fileUrl,
-        description
+        title,           // string
+        fileUrl,         // string
+        description,     // string
+        pricePerToken,   // string (ETH 가격)
+        Number(amount)   // number
       );
       console.log('Transaction hash:', txHash);
       
