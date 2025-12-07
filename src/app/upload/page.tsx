@@ -62,7 +62,12 @@ export default function UploadPage() {
       // 2. 블록체인에 문서 등록
       console.log('2️⃣ 블록체인 등록 시작...');
       const docId = await registerDocument(title, 'temp', description, price, amountNum);
-      console.log('✅ 문서 ID:', docId);
+      console.log('✅ 문서 ID (숫자):', docId, typeof docId);
+
+      // docId가 숫자인지 확인
+      if (typeof docId !== 'number' || isNaN(docId)) {
+        throw new Error(`잘못된 문서 ID: ${docId} (타입: ${typeof docId})`);
+      }
 
       // 3. Supabase Storage에 파일 업로드
       console.log('3️⃣ 파일 업로드 시작...');
@@ -71,8 +76,9 @@ export default function UploadPage() {
 
       // 4. Supabase DB에 문서 정보 저장
       console.log('4️⃣ DB 저장 시작...');
-      console.log('저장할 데이터:', {
-        doc_id: docId,
+      
+      const documentData = {
+        doc_id: docId, // 반드시 숫자여야 함
         title: title,
         description: description,
         seller: address.toLowerCase(),
@@ -80,25 +86,19 @@ export default function UploadPage() {
         price_per_token: price,
         amount: amountNum,
         is_active: true,
-      });
+      };
 
-      const { data, error } = await supabase.from('documents').insert([
-        {
-          doc_id: docId,
-          title: title,
-          description: description,
-          seller: address.toLowerCase(),
-          file_url: fileUrl,
-          price_per_token: price,
-          amount: amountNum,
-          is_active: true,
-        },
-      ]).select();
+      console.log('저장할 데이터:', documentData);
+      console.log('doc_id 타입 확인:', typeof documentData.doc_id, documentData.doc_id);
+
+      const { data, error } = await supabase
+        .from('documents')
+        .insert([documentData])
+        .select();
 
       if (error) {
         console.error('❌ DB 저장 실패:', error);
-        console.error('에러 상세:', JSON.stringify(error, null, 2));
-        throw new Error(`DB 저장 실패: ${error.message || JSON.stringify(error)}`);
+        throw new Error(`DB 저장 실패: ${error.message}`);
       }
 
       console.log('✅ DB 저장 성공:', data);
@@ -119,8 +119,6 @@ export default function UploadPage() {
 
     } catch (error: any) {
       console.error('❌ 업로드 실패:', error);
-      console.error('에러 타입:', typeof error);
-      console.error('에러 내용:', error);
       
       let errorMessage = '알 수 없는 오류';
       
@@ -128,15 +126,13 @@ export default function UploadPage() {
         errorMessage = error.message;
       } else if (error?.message) {
         errorMessage = error.message;
-      } else if (error?.error?.message) {
-        errorMessage = error.error.message;
       } else if (typeof error === 'string') {
         errorMessage = error;
       } else {
         errorMessage = JSON.stringify(error);
       }
       
-      alert(`❌ 업로드 실패:\n\n${errorMessage}\n\n자세한 내용은 콘솔을 확인하세요.`);
+      alert(`❌ 업로드 실패:\n\n${errorMessage}`);
     } finally {
       setUploading(false);
     }

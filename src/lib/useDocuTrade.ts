@@ -35,10 +35,15 @@ export async function registerDocument(
   description: string,
   price: string,
   amount: number
-) {
+): Promise<number> {
   try {
     const contract = await getDocuTradeContract();
     const priceInWei = ethers.parseEther(price);
+
+    console.log('📝 문서 등록 시작...');
+    console.log('- 제목:', title);
+    console.log('- 가격:', price, 'ETH');
+    console.log('- 수량:', amount);
 
     const tx = await contract.registerDocument(
       title,
@@ -48,13 +53,40 @@ export async function registerDocument(
       amount
     );
 
-    console.log('트랜잭션 전송:', tx.hash);
+    console.log('⏳ 트랜잭션 전송:', tx.hash);
     const receipt = await tx.wait();
-    console.log('트랜잭션 완료:', receipt);
+    console.log('✅ 트랜잭션 완료:', receipt);
 
-    return tx.hash;
+    // 이벤트에서 docId 추출
+    console.log('🔍 이벤트 로그 확인 중...');
+    for (const log of receipt.logs) {
+      try {
+        const parsed = contract.interface.parseLog({
+          topics: [...log.topics],
+          data: log.data
+        });
+        
+        console.log('이벤트 발견:', parsed?.name);
+        
+        if (parsed?.name === 'DocumentRegistered') {
+          const docId = Number(parsed.args[0]);
+          console.log('✅ 문서 ID 추출 성공:', docId);
+          return docId;
+        }
+      } catch (e) {
+        // 파싱 실패한 로그는 무시
+      }
+    }
+
+    // 이벤트를 찾지 못한 경우 getTotalDocuments로 최신 ID 가져오기
+    console.log('⚠️ 이벤트에서 ID를 찾지 못함. getTotalDocuments 사용...');
+    const totalDocs = await contract.getTotalDocuments();
+    const docId = Number(totalDocs);
+    console.log('✅ 최신 문서 ID:', docId);
+    
+    return docId;
   } catch (error) {
-    console.error('문서 등록 실패:', error);
+    console.error('❌ 문서 등록 실패:', error);
     throw error;
   }
 }

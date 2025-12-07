@@ -29,6 +29,7 @@ export default function DocumentDetailPage() {
   const [userAddress, setUserAddress] = useState('');
   const [quantity, setQuantity] = useState(1);
   const [alreadyOwns, setAlreadyOwns] = useState(false);
+  const [isMyDocument, setIsMyDocument] = useState(false);
 
   useEffect(() => {
     loadDocument();
@@ -50,6 +51,11 @@ export default function DocumentDetailPage() {
         const signer = await getSigner();
         const address = await signer.getAddress();
         setUserAddress(address.toLowerCase());
+
+        // 내 문서인지 확인
+        if (data && address.toLowerCase() === data.seller.toLowerCase()) {
+          setIsMyDocument(true);
+        }
 
         // 소유 여부 확인
         const owns = await ownsDocument(address, docId);
@@ -73,11 +79,6 @@ export default function DocumentDetailPage() {
 
     if (quantity <= 0 || quantity > document.amount) {
       alert(`수량은 1~${document.amount} 사이여야 합니다.`);
-      return;
-    }
-
-    if (userAddress.toLowerCase() === document.seller.toLowerCase()) {
-      alert('자신의 문서는 구매할 수 없습니다.');
       return;
     }
 
@@ -110,7 +111,7 @@ export default function DocumentDetailPage() {
         })
         .eq('doc_id', docId);
 
-      alert(`✅ 구매 완료!\n\nTX: ${txHash.slice(0, 20)}...`);
+      alert(`✅ 구매 완료!\n\n파일을 다운로드할 수 있습니다.\n\nTX: ${txHash.slice(0, 20)}...`);
 
       // 페이지 새로고침
       loadDocument();
@@ -120,6 +121,16 @@ export default function DocumentDetailPage() {
       alert(`❌ 구매 실패: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
       setPurchasing(false);
+    }
+  };
+
+  const handleDownload = () => {
+    if (!document) return;
+    
+    if (isMyDocument || alreadyOwns) {
+      window.open(document.file_url, '_blank');
+    } else {
+      alert('⚠️ 파일을 다운로드하려면 먼저 구매해주세요.');
     }
   };
 
@@ -134,7 +145,7 @@ export default function DocumentDetailPage() {
         justifyContent: 'center',
         background: 'linear-gradient(135deg, #0f1724 0%, #071022 100%)',
       }}>
-        <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
+        <div style={{ fontSize: '1.2rem', color: '#ffffff' }}>
           로딩 중...
         </div>
       </div>
@@ -152,8 +163,8 @@ export default function DocumentDetailPage() {
       }}>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16 }}>❌</div>
-          <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
-            문서를 찾을 수 없습니다
+          <div style={{ fontSize: '1.2rem', color: '#ffffff' }}>
+            파일을 찾을 수 없습니다
           </div>
         </div>
       </div>
@@ -177,7 +188,7 @@ export default function DocumentDetailPage() {
           boxShadow: '0 8px 32px rgba(0,0,0,0.3)',
         }}>
           {/* 상태 배지 */}
-          <div style={{ marginBottom: 20 }}>
+          <div style={{ marginBottom: 20, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
             {document.is_active ? (
               <span style={{
                 padding: '6px 16px',
@@ -201,9 +212,20 @@ export default function DocumentDetailPage() {
                 ❌ 판매종료
               </span>
             )}
-            {alreadyOwns && (
+            {isMyDocument && (
               <span style={{
-                marginLeft: 8,
+                padding: '6px 16px',
+                borderRadius: 20,
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                background: 'rgba(59,130,246,0.2)',
+                color: '#3b82f6',
+              }}>
+                📌 내 파일
+              </span>
+            )}
+            {alreadyOwns && !isMyDocument && (
+              <span style={{
                 padding: '6px 16px',
                 borderRadius: 20,
                 fontSize: '0.85rem',
@@ -211,7 +233,7 @@ export default function DocumentDetailPage() {
                 background: 'rgba(168,85,247,0.2)',
                 color: '#a855f7',
               }}>
-                🎫 보유중
+                🎫 구매완료
               </span>
             )}
           </div>
@@ -220,7 +242,7 @@ export default function DocumentDetailPage() {
           <h1 style={{
             fontSize: '2.5rem',
             fontWeight: 700,
-            color: 'var(--text-primary)',
+            color: '#ffffff',
             marginBottom: 16,
           }}>
             {document.title}
@@ -229,9 +251,10 @@ export default function DocumentDetailPage() {
           {/* 설명 */}
           <p style={{
             fontSize: '1.1rem',
-            color: 'var(--text-secondary)',
+            color: '#ffffff',
             lineHeight: 1.8,
             marginBottom: 32,
+            opacity: 0.9,
           }}>
             {document.description}
           </p>
@@ -250,8 +273,9 @@ export default function DocumentDetailPage() {
             }}>
               <div style={{
                 fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
+                color: '#ffffff',
                 marginBottom: 8,
+                opacity: 0.7,
               }}>
                 💰 가격
               </div>
@@ -271,15 +295,16 @@ export default function DocumentDetailPage() {
             }}>
               <div style={{
                 fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
+                color: '#ffffff',
                 marginBottom: 8,
+                opacity: 0.7,
               }}>
                 🔢 남은 수량
               </div>
               <div style={{
                 fontSize: '1.5rem',
                 fontWeight: 700,
-                color: 'var(--text-primary)',
+                color: '#ffffff',
               }}>
                 {document.amount}개
               </div>
@@ -292,15 +317,16 @@ export default function DocumentDetailPage() {
             }}>
               <div style={{
                 fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
+                color: '#ffffff',
                 marginBottom: 8,
+                opacity: 0.7,
               }}>
                 👤 판매자
               </div>
               <div style={{
                 fontSize: '1rem',
                 fontWeight: 600,
-                color: 'var(--text-primary)',
+                color: '#ffffff',
                 fontFamily: 'monospace',
               }}>
                 {short(document.seller)}
@@ -314,23 +340,88 @@ export default function DocumentDetailPage() {
             }}>
               <div style={{
                 fontSize: '0.85rem',
-                color: 'var(--text-secondary)',
+                color: '#ffffff',
                 marginBottom: 8,
+                opacity: 0.7,
               }}>
                 📅 등록일
               </div>
               <div style={{
                 fontSize: '1rem',
                 fontWeight: 600,
-                color: 'var(--text-primary)',
+                color: '#ffffff',
               }}>
                 {new Date(document.created_at).toLocaleDateString('ko-KR')}
               </div>
             </div>
           </div>
 
-          {/* 구매 영역 */}
-          {document.is_active && document.amount > 0 && userAddress && userAddress.toLowerCase() !== document.seller.toLowerCase() && (
+          {/* 내 파일인 경우 - 다운로드 버튼만 */}
+          {isMyDocument && (
+            <div style={{
+              background: 'rgba(59,130,246,0.1)',
+              padding: 24,
+              borderRadius: 12,
+              border: '1px solid rgba(59,130,246,0.3)',
+            }}>
+              <div style={{
+                fontSize: '1rem',
+                color: '#ffffff',
+                marginBottom: 16,
+                textAlign: 'center',
+              }}>
+                📌 내가 등록한 파일입니다
+              </div>
+              <button
+                onClick={handleDownload}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  background: 'var(--primary)',
+                }}
+              >
+                📥 파일 다운로드
+              </button>
+            </div>
+          )}
+
+          {/* 이미 구매한 경우 - 다운로드 버튼만 */}
+          {!isMyDocument && alreadyOwns && (
+            <div style={{
+              background: 'rgba(168,85,247,0.1)',
+              padding: 24,
+              borderRadius: 12,
+              border: '1px solid rgba(168,85,247,0.3)',
+            }}>
+              <div style={{
+                fontSize: '1rem',
+                color: '#ffffff',
+                marginBottom: 16,
+                textAlign: 'center',
+              }}>
+                🎫 이미 구매한 파일입니다
+              </div>
+              <button
+                onClick={handleDownload}
+                className="btn btn-primary"
+                style={{
+                  width: '100%',
+                  padding: '16px',
+                  fontSize: '1.1rem',
+                  fontWeight: 600,
+                  background: 'var(--primary)',
+                }}
+              >
+                📥 파일 다운로드
+              </button>
+            </div>
+          )}
+
+          {/* 구매 가능한 경우 - 구매 영역 */}
+          {!isMyDocument && !alreadyOwns && document.is_active && document.amount > 0 && userAddress && (
             <div style={{
               background: 'rgba(79,157,255,0.1)',
               padding: 24,
@@ -348,7 +439,7 @@ export default function DocumentDetailPage() {
                     display: 'block',
                     fontSize: '0.9rem',
                     fontWeight: 600,
-                    color: 'var(--text-primary)',
+                    color: '#ffffff',
                     marginBottom: 8,
                   }}>
                     🔢 구매 수량
@@ -365,7 +456,7 @@ export default function DocumentDetailPage() {
                       background: 'rgba(0,0,0,0.3)',
                       border: '1px solid rgba(255,255,255,0.1)',
                       borderRadius: 8,
-                      color: 'var(--text-primary)',
+                      color: '#ffffff',
                       fontSize: '1rem',
                     }}
                   />
@@ -376,7 +467,7 @@ export default function DocumentDetailPage() {
                     display: 'block',
                     fontSize: '0.9rem',
                     fontWeight: 600,
-                    color: 'var(--text-primary)',
+                    color: '#ffffff',
                     marginBottom: 8,
                   }}>
                     💳 총 가격
@@ -422,7 +513,7 @@ export default function DocumentDetailPage() {
               textAlign: 'center',
               color: '#ef4444',
             }}>
-              ⚠️ 구매하려면 먼저 지갑을 연결해주세요
+              ⚠️ 파일을 다운로드하려면 먼저 지갑을 연결해주세요
             </div>
           )}
         </div>
