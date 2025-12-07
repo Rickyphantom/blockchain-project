@@ -134,3 +134,35 @@ export async function getTransactionsByDocId(doc_id: number) {
   if (error) throw error;
   return data;
 }
+
+// ✅ 파일 업로드 (PDF, Word, Excel, Image 등)
+export async function uploadPdfFile(file: File, docId: number): Promise<string> {
+  const fileName = `${docId}_${Date.now()}_${file.name}`;
+  
+  const { data, error } = await supabase.storage
+    .from('documents')
+    .upload(`files/${fileName}`, file, {
+      cacheControl: '3600',
+      upsert: false,
+    });
+
+  if (error) {
+    console.error('파일 업로드 실패:', error);
+    throw error;
+  }
+
+  // 공개 URL 생성
+  const { data: publicUrl } = supabase.storage
+    .from('documents')
+    .getPublicUrl(`files/${fileName}`);
+
+  return publicUrl.publicUrl;
+}
+
+// ✅ 파일 다운로드 (구매자만)
+export async function downloadPdfFile(pdfUrl: string): Promise<void> {
+  const link = document.createElement('a');
+  link.href = pdfUrl;
+  link.download = 'document.pdf';
+  link.click();
+}
