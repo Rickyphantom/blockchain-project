@@ -3,12 +3,10 @@
 import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useAppState } from '@/context/AppState';
 import { getSigner, EthereumWindow } from '@/lib/web3';
 
 export default function NavBar() {
   const path = usePathname();
-  const { cart } = useAppState();
   const [address, setAddress] = useState<string | null>(null);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -112,24 +110,6 @@ export default function NavBar() {
       <Link href="/dashboard" className={`btn ${path === '/dashboard' ? 'btn-primary' : 'btn-secondary'}`} style={{ padding: '8px 12px', fontSize: '13px', gap: 6 }}>
         📊 대시보드
       </Link>
-
-      {/* 구분선 */}
-      <div style={{ width: '1px', height: 24, background: 'rgba(255,255,255,0.1)' }} />
-
-      {/* 장바구니 */}
-      <div style={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        gap: 6,
-        padding: '6px 10px',
-        background: 'rgba(79,157,255,0.08)',
-        borderRadius: 8,
-        border: '1px solid rgba(79,157,255,0.2)'
-      }}>
-        <span style={{ fontSize: '16px' }}>🛍️</span>
-        <span style={{ fontSize: '13px', fontWeight: 600 }}>장바구니</span>
-        <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent)', marginLeft: 4 }}>({cart.length})</span>
-      </div>
 
       {/* 구분선 */}
       <div style={{ width: '1px', height: 24, background: 'rgba(255,255,255,0.1)' }} />

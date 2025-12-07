@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { getDocuments, savePurchase } from '@/lib/supabase';
-import { useAppState } from '@/context/AppState';
 import { buyDocuments } from '@/lib/useDocuTrade';
 import { getSigner } from '@/lib/web3';
 
@@ -22,7 +21,6 @@ export default function Market() {
   const [documents, setDocuments] = useState<Document[]>([]);
   const [loading, setLoading] = useState(true);
   const [purchasing, setPurchasing] = useState<number | null>(null);
-  const { addToCart, cart } = useAppState();
 
   useEffect(() => {
     (async () => {
@@ -36,23 +34,6 @@ export default function Market() {
       }
     })();
   }, []);
-
-  const handleAddToCart = (doc: Document) => {
-    const isAlreadyInCart = cart.some((item) => item.doc_id === doc.doc_id);
-    if (isAlreadyInCart) {
-      alert('이미 장바구니에 있습니다');
-      return;
-    }
-    addToCart({
-      doc_id: doc.doc_id,
-      title: doc.title,
-      seller: doc.seller,
-      price_per_token: doc.price_per_token,
-      amount: doc.amount,
-      quantity: 1,
-    });
-    alert('✅ 장바구니에 추가되었습니다');
-  };
 
   const handleBuyNow = async (doc: Document) => {
     try {
@@ -78,7 +59,6 @@ export default function Market() {
 
         const txHash = await buyDocuments(doc.doc_id, quantity, doc.price_per_token);
 
-        // 구매 기록 저장
         await savePurchase({
           buyer,
           doc_id: doc.doc_id,
@@ -255,33 +235,20 @@ export default function Market() {
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    className="btn btn-primary"
-                    onClick={() => handleBuyNow(doc)}
-                    disabled={purchasing === doc.doc_id}
-                    style={{
-                      flex: 1,
-                      padding: '12px',
-                      fontSize: '0.95rem',
-                      fontWeight: 600,
-                      opacity: purchasing === doc.doc_id ? 0.6 : 1,
-                    }}
-                  >
-                    {purchasing === doc.doc_id ? '⏳ 구매 중...' : '💳 구매하기'}
-                  </button>
-                  <button
-                    className="btn btn-secondary"
-                    onClick={() => handleAddToCart(doc)}
-                    disabled={purchasing === doc.doc_id}
-                    style={{
-                      padding: '12px 16px',
-                      fontSize: '0.95rem',
-                    }}
-                  >
-                    🛒
-                  </button>
-                </div>
+                <button
+                  className="btn btn-primary"
+                  onClick={() => handleBuyNow(doc)}
+                  disabled={purchasing === doc.doc_id}
+                  style={{
+                    width: '100%',
+                    padding: '12px',
+                    fontSize: '0.95rem',
+                    fontWeight: 600,
+                    opacity: purchasing === doc.doc_id ? 0.6 : 1,
+                  }}
+                >
+                  {purchasing === doc.doc_id ? '⏳ 구매 중...' : '💳 구매하기'}
+                </button>
               </div>
             ))}
           </div>
