@@ -5,7 +5,69 @@ const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
 export const supabase = createClient(supabaseUrl, supabaseKey);
 
-// ✅ 문서 업로드 (블록체인 등록 후)
+// ✅ 파일 업로드 (한글 지원)
+export async function uploadPdfFile(file: File, docId: number): Promise<string> {
+  try {
+    // 원본 파일명 보존 (한글 포함)
+    const originalName = file.name;
+    const fileExtension = originalName.split('.').pop() || 'file';
+    
+    // URL safe하게 인코딩
+    const encodedFileName = encodeURIComponent(originalName);
+    const timestamp = Date.now();
+    const randomId = Math.random().toString(36).substring(2, 8);
+    
+    // 저장 경로: files/docId_timestamp_randomId_encodedFileName
+    const fileName = `${docId}_${timestamp}_${randomId}_${encodedFileName}`;
+
+    console.log('📤 업로드 시작:', originalName);
+    console.log('💾 저장 경로:', fileName);
+
+    const { data, error } = await supabase.storage
+      .from('documents')
+      .upload(`files/${fileName}`, file, {
+        cacheControl: '3600',
+        upsert: false,
+      });
+
+    if (error) {
+      console.error('❌ 업로드 오류:', error);
+      throw new Error(`파일 업로드 실패: ${error.message}`);
+    }
+
+    console.log('✅ 파일 업로드 완료:', data);
+
+    // 공개 URL 생성
+    const { data: publicUrlData } = supabase.storage
+      .from('documents')
+      .getPublicUrl(`files/${fileName}`);
+
+    if (!publicUrlData || !publicUrlData.publicUrl) {
+      throw new Error('공개 URL 생성 실패');
+    }
+
+    console.log('✅ 공개 URL 생성 완료:', publicUrlData.publicUrl);
+    return publicUrlData.publicUrl;
+  } catch (error) {
+    console.error('파일 업로드 중 오류 발생:', error);
+    throw error;
+  }
+}
+
+// ✅ 파일 다운로드
+export async function downloadPdfFile(pdfUrl: string): Promise<void> {
+  try {
+    const link = document.createElement('a');
+    link.href = pdfUrl;
+    link.download = 'document';
+    link.click();
+  } catch (error) {
+    console.error('파일 다운로드 오류:', error);
+    throw error;
+  }
+}
+
+// ✅ 문서 업로드 (DB 저장)
 export async function uploadDocument(
   doc_id: number,
   title: string,
@@ -133,36 +195,4 @@ export async function getTransactionsByDocId(doc_id: number) {
 
   if (error) throw error;
   return data;
-}
-
-// ✅ 파일 업로드 (PDF, Word, Excel, Image 등)
-export async function uploadPdfFile(file: File, docId: number): Promise<string> {
-  const fileName = `${docId}_${Date.now()}_${file.name}`;
-  
-  const { data, error } = await supabase.storage
-    .from('documents')
-    .upload(`files/${fileName}`, file, {
-      cacheControl: '3600',
-      upsert: false,
-    });
-
-  if (error) {
-    console.error('파일 업로드 실패:', error);
-    throw error;
-  }
-
-  // 공개 URL 생성
-  const { data: publicUrl } = supabase.storage
-    .from('documents')
-    .getPublicUrl(`files/${fileName}`);
-
-  return publicUrl.publicUrl;
-}
-
-// ✅ 파일 다운로드 (구매자만)
-export async function downloadPdfFile(pdfUrl: string): Promise<void> {
-  const link = document.createElement('a');
-  link.href = pdfUrl;
-  link.download = 'document.pdf';
-  link.click();
 }

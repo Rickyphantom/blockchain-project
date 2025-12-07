@@ -1,28 +1,45 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { registerDocument } from '@/lib/useDocuTrade';
 import { uploadDocument, uploadPdfFile } from '@/lib/supabase';
 import { getSigner } from '@/lib/web3';
 
 // 지원하는 파일 형식
-const ALLOWED_TYPES = {
-  'application/pdf': { label: 'PDF', icon: '📄' },
-  'application/vnd.openxmlformats-officedocument.wordprocessingml.document': {
+const ALLOWED_EXTENSIONS = {
+  pdf: { label: 'PDF', icon: '📄', mimeTypes: ['application/pdf'] },
+  docx: {
     label: 'Word (.docx)',
     icon: '📝',
+    mimeTypes: [
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword',
+    ],
   },
-  'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': {
+  xlsx: {
     label: 'Excel (.xlsx)',
     icon: '📊',
+    mimeTypes: [
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'application/vnd.ms-excel',
+    ],
   },
-  'text/plain': { label: 'Text (.txt)', icon: '📃' },
-  'application/vnd.openxmlformats-officedocument.presentationml.presentation': {
+  txt: {
+    label: 'Text (.txt)',
+    icon: '📃',
+    mimeTypes: ['text/plain'],
+  },
+  pptx: {
     label: 'PowerPoint (.pptx)',
     icon: '🎨',
+    mimeTypes: [
+      'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+      'application/vnd.ms-powerpoint',
+    ],
   },
-  'image/png': { label: 'PNG 이미지', icon: '🖼️' },
-  'image/jpeg': { label: 'JPG 이미지', icon: '🖼️' },
+  png: { label: 'PNG 이미지', icon: '🖼️', mimeTypes: ['image/png'] },
+  jpg: { label: 'JPG 이미지', icon: '🖼️', mimeTypes: ['image/jpeg'] },
+  jpeg: { label: 'JPG 이미지', icon: '🖼️', mimeTypes: ['image/jpeg'] },
 };
 
 const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50MB
@@ -37,15 +54,36 @@ export default function UploadPage() {
   const [dragActive, setDragActive] = useState(false);
   const [progress, setProgress] = useState(0);
 
+  // 파일 확장자로 유효성 검사
+  const getFileExtension = (fileName: string): string => {
+    return fileName.split('.').pop()?.toLowerCase() || '';
+  };
+
+  // 파일이 지원하는 형식인지 확인
+  const isAllowedFile = (inputFile: File): boolean => {
+    const extension = getFileExtension(inputFile.name);
+
+    // 확장자 확인
+    if (!ALLOWED_EXTENSIONS[extension as keyof typeof ALLOWED_EXTENSIONS]) {
+      return false;
+    }
+
+    // MIME Type도 함께 확인 (추가 보안)
+    const fileInfo = ALLOWED_EXTENSIONS[extension as keyof typeof ALLOWED_EXTENSIONS];
+    return fileInfo.mimeTypes.includes(inputFile.type) || inputFile.type === '';
+  };
+
   const validateAndSetFile = (inputFile: File | null | undefined) => {
     if (!inputFile) return;
 
     // 파일 형식 검증
-    if (!ALLOWED_TYPES[inputFile.type as keyof typeof ALLOWED_TYPES]) {
-      const supportedFormats = Object.values(ALLOWED_TYPES)
+    if (!isAllowedFile(inputFile)) {
+      const supportedFormats = Object.values(ALLOWED_EXTENSIONS)
         .map((f) => f.label)
         .join(', ');
-      alert(`❌ 지원하지 않는 파일 형식입니다.\n\n지원 형식: ${supportedFormats}`);
+      alert(
+        `❌ 지원하지 않는 파일 형식입니다.\n\n지원 형식:\n${supportedFormats}\n\n(파일명은 한글 가능)`
+      );
       return;
     }
 
@@ -97,10 +135,10 @@ export default function UploadPage() {
       // Document ID 생성
       const newDocId: number = Math.floor(Date.now() / 1000);
 
-      // 1️⃣ 파일 업로드 (확장자 유지)
+      // 1️⃣ 파일 업로드
       console.log('📤 파일 업로드 중...');
       setProgress(33);
-      const fileUrl = await uploadFileToSupabase(file, newDocId);
+      const fileUrl = await uploadPdfFile(file, newDocId);
       console.log('✅ 파일 업로드 완료:', fileUrl);
 
       // 2️⃣ 블록체인에 등록
@@ -153,18 +191,18 @@ export default function UploadPage() {
     }
   };
 
-  // 파일을 Supabase Storage에 업로드
-  const uploadFileToSupabase = async (
-    inputFile: File,
-    docId: number
-  ): Promise<string> => {
-    const { uploadPdfFile } = await import('@/lib/supabase');
-    return uploadPdfFile(inputFile, docId);
-  };
-
   const getFileInfo = () => {
     if (!file) return null;
-    return ALLOWED_TYPES[file.type as keyof typeof ALLOWED_TYPES];
+    const extension = getFileExtension(file.name);
+    return ALLOWED_EXTENSIONS[extension as keyof typeof ALLOWED_EXTENSIONS];
+  };
+
+  // 파일명 미리보기 개선
+  const getDisplayFileName = (fileName: string): string => {
+    if (fileName.length > 50) {
+      return fileName.substring(0, 47) + '...';
+    }
+    return fileName;
   };
 
   const fileInfo = getFileInfo();
@@ -258,8 +296,8 @@ export default function UploadPage() {
                     <div style={{ fontSize: '40px', marginBottom: '10px' }}>
                       {fileInfo?.icon}
                     </div>
-                    <div style={{ fontWeight: 'bold', color: '#2e7d32', fontSize: '16px' }}>
-                      {file.name}
+                    <div style={{ fontWeight: 'bold', color: '#2e7d32', fontSize: '16px', wordBreak: 'break-all' }}>
+                      {getDisplayFileName(file.name)}
                     </div>
                     <div style={{ fontSize: '12px', color: '#666', marginTop: '5px' }}>
                       {fileInfo?.label} • {(file.size / 1024 / 1024).toFixed(2)} MB
@@ -283,7 +321,7 @@ export default function UploadPage() {
                       파일을 여기에 드래그하세요
                     </div>
                     <div style={{ fontSize: '13px', color: '#666', marginBottom: '15px' }}>
-                      또는 클릭하여 선택
+                      또는 클릭하여 선택 (한글 파일명 O)
                     </div>
 
                     {/* 지원 파일 형식 */}
@@ -295,7 +333,7 @@ export default function UploadPage() {
                         marginTop: '15px',
                       }}
                     >
-                      {Object.values(ALLOWED_TYPES).map((type) => (
+                      {Object.values(ALLOWED_EXTENSIONS).map((type) => (
                         <div
                           key={type.label}
                           style={{
@@ -491,7 +529,7 @@ export default function UploadPage() {
             <li>📊 Excel (.xlsx)</li>
             <li>🎨 PowerPoint (.pptx)</li>
             <li>📃 Text (.txt)</li>
-            <li>🖼️ Image (PNG, JPG)</li>
+            <li>🖼️ Image (PNG, JPG/JPEG)</li>
           </ul>
         </div>
       </div>
