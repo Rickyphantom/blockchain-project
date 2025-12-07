@@ -3,36 +3,24 @@
 import { useEffect, useState } from 'react';
 import { getSigner } from '@/lib/web3';
 import { supabase } from '@/lib/supabase';
-import { getUserNFTs, getDocumentByToken } from '@/lib/useDocuTrade';
-import NFTCertificate from '@/components/NFTCertificate';
+import { deactivateDocument, getDocument } from '@/lib/useDocuTrade';
 
-interface Purchase {
+interface MyDocument {
   id: number;
   doc_id: number;
-  quantity: number;
-  total_price: string;
-  tx_hash: string;
-  created_at: string;
-  documents: {
-    title: string;
-    description: string;
-  };
-}
-
-interface NFTItem {
-  tokenId: number;
-  docId: number;
   title: string;
   description: string;
+  price_per_token: string;
+  amount: number;
+  created_at: string;
+  isActive?: boolean;
 }
 
-export default function Dashboard() {
+export default function MySalesPage() {
   const [userAddress, setUserAddress] = useState<string>('');
-  const [purchases, setPurchases] = useState<Purchase[]>([]);
-  const [nfts, setNfts] = useState<NFTItem[]>([]);
+  const [documents, setDocuments] = useState<MyDocument[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'purchases' | 'nfts'>('purchases');
-  const [selectedNFT, setSelectedNFT] = useState<NFTItem | null>(null);
+  const [deactivating, setDeactivating] = useState<number | null>(null);
 
   useEffect(() => {
     const init = async () => {
@@ -41,41 +29,35 @@ export default function Dashboard() {
         const address = await signer.getAddress();
         setUserAddress(address.toLowerCase());
 
-        // 구매 내역 조회
-        const { data: purchaseData, error } = await supabase
-          .from('purchases')
-          .select(`
-            *,
-            documents (
-              title,
-              description
-            )
-          `)
-          .eq('buyer', address.toLowerCase())
+        // Supabase에서 내가 등록한 문서 조회
+        const { data, error } = await supabase
+          .from('documents')
+          .select('*')
+          .eq('seller', address.toLowerCase())
           .order('created_at', { ascending: false });
 
         if (error) throw error;
-        setPurchases(purchaseData || []);
 
-        // NFT 조회
-        const nftIds = await getUserNFTs(address);
-        const nftDetails: NFTItem[] = [];
+        // 블록체인에서 isActive 상태 가져오기
+        const docsWithStatus = await Promise.all(
+          (data || []).map(async (doc) => {
+            try {
+              const blockchainDoc = await getDocument(doc.doc_id);
+              return {
+                ...doc,
+                isActive: blockchainDoc.isActive,
+              };
+            } catch (error) {
+              console.error(`문서 ${doc.doc_id} 상태 조회 실패:`, error);
+              return {
+                ...doc,
+                isActive: false,
+              };
+            }
+          })
+        );
 
-        for (const tokenId of nftIds) {
-          try {
-            const doc = await getDocumentByToken(tokenId);
-            nftDetails.push({
-              tokenId,
-              docId: doc.docId,
-              title: doc.title,
-              description: doc.description,
-            });
-          } catch (error) {
-            console.error(`NFT ${tokenId} 조회 실패:`, error);
-          }
-        }
-
-        setNfts(nftDetails);
+        setDocuments(docsWithStatus);
       } catch (error) {
         console.error('데이터 로드 실패:', error);
       } finally {
@@ -85,6 +67,31 @@ export default function Dashboard() {
 
     init();
   }, []);
+
+  const handleDeactivate = async (docId: number) => {
+    if (!confirm('정말 판매를 중단하시겠습니까?')) return;
+
+    try {
+      setDeactivating(docId);
+      
+      // 블록체인에서 판매 중단
+      const txHash = await deactivateDocument(docId);
+      
+      alert(`✅ 판매 중단 완료!\n\nTX: ${txHash.slice(0, 20)}...`);
+      
+      // 상태 업데이트
+      setDocuments(docs =>
+        docs.map(doc =>
+          doc.doc_id === docId ? { ...doc, isActive: false } : doc
+        )
+      );
+    } catch (error) {
+      console.error('판매 중단 실패:', error);
+      alert(`❌ 실패: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setDeactivating(null);
+    }
+  };
 
   const short = (addr: string) => `${addr.slice(0, 6)}...${addr.slice(-4)}`;
 
@@ -120,7 +127,7 @@ export default function Dashboard() {
             WebkitTextFillColor: 'transparent',
             marginBottom: 16,
           }}>
-            📊 대시보드
+            🏪 내 판매 목록
           </h1>
           <div style={{
             fontSize: '1rem',
@@ -131,276 +138,234 @@ export default function Dashboard() {
           }}>
             <span>💼</span>
             <span>{short(userAddress)}</span>
+            <span>•</span>
+            <span>{documents.length}개 문서</span>
           </div>
         </div>
 
-        {/* 탭 버튼 */}
-        <div style={{
-          display: 'flex',
-          gap: 12,
-          marginBottom: 32,
-          borderBottom: '2px solid rgba(255,255,255,0.1)',
-        }}>
-          <button
-            onClick={() => setActiveTab('purchases')}
-            style={{
-              padding: '12px 24px',
-              background: activeTab === 'purchases' ? 'rgba(79,157,255,0.2)' : 'transparent',
-              border: 'none',
-              borderBottom: activeTab === 'purchases' ? '3px solid var(--accent)' : '3px solid transparent',
-              color: activeTab === 'purchases' ? 'var(--accent)' : 'var(--text-secondary)',
-              fontSize: '1rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-            }}
-          >
-            🛒 구매 내역 ({purchases.length})
-          </button>
-          <button
-            onClick={() => setActiveTab('nfts')}
-            style={{
-              padding: '12px 24px',
-              background: activeTab === 'nfts' ? 'rgba(79,157,255,0.2)' : 'transparent',
-              border: 'none',
-              borderBottom: activeTab === 'nfts' ? '3px solid var(--accent)' : '3px solid transparent',
-              color: activeTab === 'nfts' ? 'var(--accent)' : 'var(--text-secondary)',
-              fontSize: '1rem',
-              fontWeight: 600,
-              cursor: 'pointer',
-              transition: 'all 0.3s ease',
-            }}
-          >
-            🎫 내 NFT ({nfts.length})
-          </button>
-        </div>
-
-        {/* 구매 내역 탭 */}
-        {activeTab === 'purchases' && (
-          <div>
-            {purchases.length === 0 ? (
-              <div style={{
-                textAlign: 'center',
-                padding: 60,
-                background: 'rgba(255,255,255,0.02)',
-                borderRadius: 16,
-                border: '1px solid rgba(255,255,255,0.05)',
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: 16 }}>📭</div>
-                <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
-                  구매 내역이 없습니다
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                display: 'grid',
-                gap: 16,
-              }}>
-                {purchases.map((purchase) => (
-                  <div
-                    key={purchase.id}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
-                      borderRadius: 12,
-                      padding: 20,
-                      border: '1px solid rgba(255,255,255,0.08)',
-                      transition: 'all 0.3s ease',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(79,157,255,0.3)';
-                      e.currentTarget.style.transform = 'translateY(-2px)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)';
-                      e.currentTarget.style.transform = 'translateY(0)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: 12 }}>
-                      <div style={{ flex: 1 }}>
-                        <h3 style={{ fontSize: '1.2rem', fontWeight: 600, color: 'var(--text-primary)', marginBottom: 4 }}>
-                          {purchase.documents?.title || '제목 없음'}
-                        </h3>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: 8 }}>
-                          {purchase.documents?.description || '설명 없음'}
-                        </p>
-                      </div>
-                      <div style={{
-                        background: 'rgba(79,157,255,0.2)',
-                        padding: '4px 12px',
-                        borderRadius: 20,
-                        fontSize: '0.85rem',
-                        fontWeight: 600,
-                        color: 'var(--accent)',
-                      }}>
-                        {purchase.quantity}개
-                      </div>
-                    </div>
-
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 12 }}>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          구매 가격
-                        </div>
-                        <div style={{ fontSize: '1rem', fontWeight: 600, color: 'var(--accent)' }}>
-                          {purchase.total_price} ETH
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          구매 일시
-                        </div>
-                        <div style={{ fontSize: '0.9rem', color: 'var(--text-primary)' }}>
-                          {new Date(purchase.created_at).toLocaleString('ko-KR')}
-                        </div>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', marginBottom: 4 }}>
-                          트랜잭션
-                        </div>
-                        <a
-                          href={`https://sepolia.etherscan.io/tx/${purchase.tx_hash}`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          style={{
-                            fontSize: '0.85rem',
-                            color: 'var(--accent)',
-                            textDecoration: 'none',
-                            fontFamily: 'monospace',
-                          }}
-                        >
-                          {short(purchase.tx_hash)} 🔗
-                        </a>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+        {documents.length === 0 ? (
+          <div style={{
+            textAlign: 'center',
+            padding: 60,
+            background: 'rgba(255,255,255,0.02)',
+            borderRadius: 16,
+            border: '1px solid rgba(255,255,255,0.05)',
+          }}>
+            <div style={{ fontSize: '3rem', marginBottom: 16 }}>📋</div>
+            <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)', marginBottom: 16 }}>
+              등록한 문서가 없습니다
+            </div>
+            <a
+              href="/upload"
+              className="btn btn-primary"
+              style={{
+                display: 'inline-block',
+                textDecoration: 'none',
+                padding: '12px 24px',
+              }}
+            >
+              📤 문서 등록하기
+            </a>
           </div>
-        )}
-
-        {/* NFT 탭 */}
-        {activeTab === 'nfts' && (
-          <div>
-            {nfts.length === 0 ? (
-              <div style={{
-                textAlign: 'center',
-                padding: 60,
-                background: 'rgba(255,255,255,0.02)',
-                borderRadius: 16,
-                border: '1px solid rgba(255,255,255,0.05)',
-              }}>
-                <div style={{ fontSize: '3rem', marginBottom: 16 }}>🎫</div>
-                <div style={{ fontSize: '1.2rem', color: 'var(--text-secondary)' }}>
-                  소유한 NFT가 없습니다
-                </div>
-              </div>
-            ) : (
-              <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-                gap: 20,
-              }}>
-                {nfts.map((nft) => (
-                  <div
-                    key={nft.tokenId}
-                    style={{
-                      background: 'linear-gradient(135deg, rgba(79,157,255,0.1), rgba(99,102,241,0.1))',
-                      borderRadius: 16,
-                      padding: 20,
-                      border: '2px solid rgba(79,157,255,0.3)',
-                      transition: 'all 0.3s ease',
-                      cursor: 'pointer',
-                    }}
-                    onClick={() => setSelectedNFT(nft)}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.transform = 'translateY(-4px)';
-                      e.currentTarget.style.borderColor = 'rgba(79,157,255,0.5)';
-                      e.currentTarget.style.boxShadow = '0 12px 48px rgba(79,157,255,0.2)';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.transform = 'translateY(0)';
-                      e.currentTarget.style.borderColor = 'rgba(79,157,255,0.3)';
-                      e.currentTarget.style.boxShadow = 'none';
-                    }}
-                  >
+        ) : (
+          <div style={{
+            display: 'grid',
+            gap: 16,
+          }}>
+            {documents.map((doc) => (
+              <div
+                key={doc.id}
+                style={{
+                  background: 'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
+                  borderRadius: 12,
+                  padding: 24,
+                  border: `1px solid ${doc.isActive ? 'rgba(79,157,255,0.3)' : 'rgba(255,255,255,0.08)'}`,
+                  transition: 'all 0.3s ease',
+                  opacity: doc.isActive ? 1 : 0.6,
+                }}
+              >
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'start',
+                  marginBottom: 16,
+                }}>
+                  <div style={{ flex: 1 }}>
                     <div style={{
-                      width: '100%',
-                      height: 180,
-                      background: 'linear-gradient(135deg, var(--accent), var(--primary))',
-                      borderRadius: 12,
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'center',
-                      fontSize: '4rem',
-                      marginBottom: 16,
-                    }}>
-                      🎫
-                    </div>
-
-                    <div style={{
-                      background: 'rgba(0,0,0,0.3)',
-                      padding: '4px 10px',
-                      borderRadius: 20,
-                      fontSize: '0.75rem',
-                      fontWeight: 600,
-                      color: 'var(--accent)',
-                      display: 'inline-block',
-                      marginBottom: 12,
-                    }}>
-                      Token #{nft.tokenId}
-                    </div>
-
-                    <h3 style={{
-                      fontSize: '1.1rem',
-                      fontWeight: 600,
-                      color: '#ffffff',
+                      gap: 8,
                       marginBottom: 8,
                     }}>
-                      {nft.title}
-                    </h3>
-
+                      <h3 style={{
+                        fontSize: '1.3rem',
+                        fontWeight: 600,
+                        color: 'var(--text-primary)',
+                      }}>
+                        {doc.title}
+                      </h3>
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: 20,
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
+                        background: doc.isActive ? 'rgba(34,197,94,0.2)' : 'rgba(239,68,68,0.2)',
+                        color: doc.isActive ? '#22c55e' : '#ef4444',
+                      }}>
+                        {doc.isActive ? '✅ 판매중' : '⏸️ 중단됨'}
+                      </span>
+                    </div>
                     <p style={{
-                      fontSize: '0.85rem',
+                      fontSize: '0.9rem',
                       color: 'var(--text-secondary)',
-                      marginBottom: 16,
-                      lineHeight: 1.5,
-                      minHeight: 40,
+                      marginBottom: 12,
                     }}>
-                      {nft.description}
+                      {doc.description}
                     </p>
+                  </div>
+                </div>
 
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+                  gap: 16,
+                  marginBottom: 16,
+                }}>
+                  <div style={{
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: 12,
+                    borderRadius: 8,
+                  }}>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      marginBottom: 4,
+                    }}>
+                      💰 가격
+                    </div>
+                    <div style={{
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      color: 'var(--accent)',
+                    }}>
+                      {doc.price_per_token} ETH
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: 12,
+                    borderRadius: 8,
+                  }}>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      marginBottom: 4,
+                    }}>
+                      🔢 수량
+                    </div>
+                    <div style={{
+                      fontSize: '1.1rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                    }}>
+                      {doc.amount}개
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: 12,
+                    borderRadius: 8,
+                  }}>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      marginBottom: 4,
+                    }}>
+                      📋 문서 ID
+                    </div>
+                    <div style={{
+                      fontSize: '1rem',
+                      fontWeight: 600,
+                      color: 'var(--text-primary)',
+                      fontFamily: 'monospace',
+                    }}>
+                      #{doc.doc_id}
+                    </div>
+                  </div>
+
+                  <div style={{
+                    background: 'rgba(0,0,0,0.2)',
+                    padding: 12,
+                    borderRadius: 8,
+                  }}>
+                    <div style={{
+                      fontSize: '0.75rem',
+                      color: 'var(--text-secondary)',
+                      marginBottom: 4,
+                    }}>
+                      📅 등록일
+                    </div>
+                    <div style={{
+                      fontSize: '0.85rem',
+                      color: 'var(--text-primary)',
+                    }}>
+                      {new Date(doc.created_at).toLocaleDateString('ko-KR')}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{
+                  display: 'flex',
+                  gap: 12,
+                }}>
+                  <button
+                    onClick={() => window.open(`/marketplace/${doc.doc_id}`, '_blank')}
+                    className="btn btn-secondary"
+                    style={{
+                      flex: 1,
+                      padding: '10px',
+                      fontSize: '0.9rem',
+                    }}
+                  >
+                    👁️ 상세보기
+                  </button>
+                  
+                  {doc.isActive && (
                     <button
-                      className="btn btn-primary"
+                      onClick={() => handleDeactivate(doc.doc_id)}
+                      disabled={deactivating === doc.doc_id}
                       style={{
-                        width: '100%',
+                        flex: 1,
                         padding: '10px',
                         fontSize: '0.9rem',
+                        background: 'rgba(239,68,68,0.2)',
+                        border: '1px solid rgba(239,68,68,0.3)',
+                        borderRadius: 8,
+                        color: '#ef4444',
+                        fontWeight: 600,
+                        cursor: deactivating === doc.doc_id ? 'not-allowed' : 'pointer',
+                        transition: 'all 0.3s ease',
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedNFT(nft);
+                      onMouseEnter={(e) => {
+                        if (deactivating !== doc.doc_id) {
+                          e.currentTarget.style.background = 'rgba(239,68,68,0.3)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.background = 'rgba(239,68,68,0.2)';
                       }}
                     >
-                      🏆 소유권 증명서 보기
+                      {deactivating === doc.doc_id ? '⏳ 처리 중...' : '⏸️ 판매 중단'}
                     </button>
-                  </div>
-                ))}
+                  )}
+                </div>
               </div>
-            )}
+            ))}
           </div>
         )}
       </div>
-
-      {/* NFT 증명서 모달 */}
-      {selectedNFT && (
-        <NFTCertificate
-          tokenId={selectedNFT.tokenId}
-          docId={selectedNFT.docId}
-          title={selectedNFT.title}
-          onClose={() => setSelectedNFT(null)}
-        />
-      )}
     </div>
   );
 }

@@ -59,6 +59,23 @@ export async function registerDocument(
   }
 }
 
+// 판매 중단
+export async function deactivateDocument(docId: number) {
+  try {
+    const contract = await getDocuTradeContract();
+    const tx = await contract.deactivateDocument(docId);
+    
+    console.log('판매 중단 트랜잭션:', tx.hash);
+    const receipt = await tx.wait();
+    console.log('판매 중단 완료:', receipt);
+    
+    return tx.hash;
+  } catch (error) {
+    console.error('판매 중단 실패:', error);
+    throw error;
+  }
+}
+
 // 문서 구매
 export async function buyDocuments(
   docId: number,
