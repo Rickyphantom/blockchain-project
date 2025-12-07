@@ -3,8 +3,8 @@ import { BrowserProvider, JsonRpcSigner } from 'ethers';
 
 export interface EthereumProvider {
   request(args: { method: string; params?: unknown[] }): Promise<unknown>;
-  on?(event: string, handler: (...args: unknown[]) => void): void;
-  removeListener?(event: string, handler: (...args: unknown[]) => void): void;
+  on?(event: 'accountsChanged' | 'chainChanged' | string, handler: (args: unknown) => void): void;
+  removeListener?(event: 'accountsChanged' | 'chainChanged' | string, handler: (args: unknown) => void): void;
 }
 
 export interface EthereumWindow extends Window {
@@ -30,7 +30,6 @@ export async function ensureSepolia(): Promise<void> {
   });
 }
 
-/** 🔧 브라우저에서는 BrowserProvider 를 써야 합니다. */
 export async function getProvider(): Promise<BrowserProvider> {
   return new BrowserProvider((window as EthereumWindow).ethereum!);
 }
