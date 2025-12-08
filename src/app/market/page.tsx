@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { getSigner } from '@/lib/web3';
+import { buyDocuments } from '@/lib/useDocuTrade';
 
 interface Document {
   id: number;
@@ -23,21 +25,49 @@ export default function MarketplacePage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<'all' | 'active' | 'sold'>('active');
   const [userAddress, setUserAddress] = useState<string | null>(null);
-  const [isMyDocument, setIsMyDocument] = useState(false);
-  const [alreadyOwns, setAlreadyOwns] = useState(false);
-  const [quantity, setQuantity] = useState(1);
-  const [totalPrice, setTotalPrice] = useState('');
-  const [purchasing, setPurchasing] = useState(false);
+  const [ownedDocuments, setOwnedDocuments] = useState<Set<number>>(new Set());
+  const [purchasing, setPurchasing] = useState<number | null>(null);
+
+  // 사용자 지갑 주소 가져오기
+  useEffect(() => {
+    const getUserAddress = async () => {
+      try {
+        const signer = await getSigner();
+        const address = await signer.getAddress();
+        setUserAddress(address.toLowerCase());
+      } catch (error) {
+        console.log('지갑 연결 안됨');
+      }
+    };
+    getUserAddress();
+  }, []);
 
   useEffect(() => {
     loadDocuments();
   }, [filter]);
 
+  // 구매한 문서 목록 로드
+  useEffect(() => {
+    const loadOwnedDocuments = async () => {
+      if (!userAddress) return;
+
+      const { data: purchases } = await supabase
+        .from('purchases')
+        .select('doc_id')
+        .eq('buyer', userAddress);
+
+      if (purchases) {
+        const owned = new Set(purchases.map((p) => p.doc_id));
+        setOwnedDocuments(owned);
+      }
+    };
+
+    loadOwnedDocuments();
+  }, [userAddress]);
+
   useEffect(() => {
     if (documents.length > 0) {
       const doc = documents[0];
-      setIsMyDocument(false);
-      setAlreadyOwns(false);
 
       // 내 문서 확인
       const checkMyDocument = async () => {
@@ -52,22 +82,6 @@ export default function MarketplacePage() {
         if (error) {
           console.error('문서 소유자 확인 실패:', error);
           return;
-        }
-
-        if (data && userAddress.toLowerCase() === data.seller.toLowerCase()) {
-          setIsMyDocument(true); // ✅ 내 파일
-        }
-
-        // 소유 여부 확인 (구매 내역에서 확인)
-        const { data: purchaseData } = await supabase
-          .from('purchases')
-          .select('id')
-          .eq('buyer', userAddress.toLowerCase())
-          .eq('doc_id', doc.doc_id)
-          .maybeSingle();
-
-        if (purchaseData) {
-          setAlreadyOwns(true); // ✅ 구매한 파일
         }
       };
 
@@ -131,22 +145,83 @@ export default function MarketplacePage() {
     router.push(`/marketplace/${docId}`);
   };
 
-  const handlePurchase = async () => {
-    if (!userAddress) return;
+  const handleBuyNow = async (doc: Document, e: React.MouseEvent) => {
+    e.stopPropagation(); // 카드 클릭 이벤트 전파 방지
 
-    setPurchasing(true);
+    if (!userAddress) {
+      alert('⚠️ 지갑을 먼저 연결해주세요');
+      return;
+    }
+
+    if (userAddress === doc.seller.toLowerCase()) {
+      alert('⚠️ 자신의 문서는 구매할 수 없습니다');
+      return;
+    }
+
+    if (ownedDocuments.has(doc.doc_id)) {
+      alert('⚠️ 이미 소유한 문서입니다. 대시보드에서 다운로드할 수 있습니다.');
+      return;
+    }
+
+    if (doc.amount === 0) {
+      alert('⚠️ 품절된 문서입니다');
+      return;
+    }
 
     try {
-      // TODO: 실제 구매 로직 구현
-      console.log('구매 진행:', { docId: documents[0]?.doc_id, quantity });
+      setPurchasing(doc.doc_id);
 
-      // 구매 후 문서 목록 새로고침
-      await loadDocuments();
-    } catch (error) {
+      const quantity = 1;
+
+      if (
+        confirm(
+          `"${doc.title}"을(를) ${doc.price_per_token} ETH에 구매하시겠습니까?`
+        )
+      ) {
+        console.log('구매 시작:', {
+          doc_id: doc.doc_id,
+          quantity,
+          price: doc.price_per_token,
+        });
+
+        // 블록체인에서 구매
+        const txHash = await buyDocuments(
+          doc.doc_id,
+          quantity,
+          doc.price_per_token
+        );
+
+        // Supabase에 구매 내역 저장
+        const { error } = await supabase.from('purchases').insert({
+          buyer: userAddress,
+          doc_id: doc.doc_id,
+          quantity,
+          total_price: doc.price_per_token,
+          tx_hash: txHash,
+        });
+
+        if (error) {
+          console.error('구매 내역 저장 실패:', error);
+        }
+
+        // 구매 완료 후 소유 문서 목록 업데이트
+        setOwnedDocuments((prev) => new Set([...prev, doc.doc_id]));
+
+        alert(
+          `✅ 구매 완료!\n\n📄 문서: ${doc.title}\n⛓️ TX: ${txHash.slice(
+            0,
+            20
+          )}...\n\n대시보드에서 다운로드할 수 있습니다.`
+        );
+
+        // 문서 목록 새로고침
+        await loadDocuments();
+      }
+    } catch (error: any) {
       console.error('구매 실패:', error);
-      alert('구매에 실패했습니다. 나중에 다시 시도해주세요.');
+      alert(`❌ 구매 실패: ${error.message || String(error)}`);
     } finally {
-      setPurchasing(false);
+      setPurchasing(null);
     }
   };
 
@@ -242,310 +317,276 @@ export default function MarketplacePage() {
               gap: 24,
             }}
           >
-            {documents.map((document) => (
-              <div
-                key={document.id}
-                onClick={() => handleCardClick(document.doc_id)}
-                style={{
-                  background:
-                    'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
-                  borderRadius: 16,
-                  padding: 24,
-                  border: '1px solid rgba(79,157,255,0.2)',
-                  cursor: 'pointer',
-                }}
-              >
-                {/* 상태 배지 */}
+            {documents.map((document) => {
+              const isMyDoc =
+                userAddress &&
+                document.seller.toLowerCase() === userAddress.toLowerCase();
+              const isOwned = ownedDocuments.has(document.doc_id);
+              const canPurchase =
+                userAddress &&
+                !isMyDoc &&
+                !isOwned &&
+                document.is_active &&
+                document.amount > 0;
+
+              return (
                 <div
+                  key={document.id}
                   style={{
-                    marginBottom: 16,
-                    display: 'flex',
-                    gap: 8,
-                    alignItems: 'center',
+                    background:
+                      'linear-gradient(135deg, rgba(30,41,59,0.4), rgba(15,23,36,0.4))',
+                    borderRadius: 16,
+                    padding: 24,
+                    border: `1px solid ${
+                      isOwned ? 'rgba(123,228,162,0.3)' : 'rgba(79,157,255,0.2)'
+                    }`,
+                    transition: 'all 0.3s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-4px)';
+                    e.currentTarget.style.borderColor = isOwned
+                      ? 'rgba(123,228,162,0.5)'
+                      : 'rgba(79,157,255,0.3)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.borderColor = isOwned
+                      ? 'rgba(123,228,162,0.3)'
+                      : 'rgba(79,157,255,0.2)';
                   }}
                 >
-                  {document.is_active && document.amount > 0 ? (
-                    <span
-                      style={{
-                        padding: '4px 12px',
-                        borderRadius: 12,
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        background: 'rgba(34,197,94,0.2)',
-                        color: '#22c55e',
-                      }}
-                    >
-                      ✅ 판매중
-                    </span>
-                  ) : (
-                    <span
-                      style={{
-                        padding: '4px 12px',
-                        borderRadius: 12,
-                        fontSize: '0.75rem',
-                        fontWeight: 600,
-                        background: 'rgba(239,68,68,0.2)',
-                        color: '#ef4444',
-                      }}
-                    >
-                      ❌ 품절
-                    </span>
-                  )}
-                  <span style={{ fontSize: '2rem' }}>
-                    {getFileIcon(document.file_url)}
-                  </span>
-                </div>
-
-                {/* 제목 */}
-                <h3
-                  style={{
-                    fontSize: '1.3rem',
-                    fontWeight: 700,
-                    color: '#ffffff',
-                    marginBottom: 12,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    whiteSpace: 'nowrap',
-                  }}
-                >
-                  {document.title}
-                </h3>
-
-                {/* 설명 */}
-                <p
-                  style={{
-                    fontSize: '0.9rem',
-                    color: '#ffffff',
-                    marginBottom: 16,
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    display: '-webkit-box',
-                    WebkitLineClamp: 2,
-                    WebkitBoxOrient: 'vertical',
-                    opacity: 0.8,
-                    minHeight: 45,
-                  }}
-                >
-                  {document.description}
-                </p>
-
-                {/* 정보 */}
-                <div
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    paddingTop: 16,
-                    borderTop: '1px solid rgba(255,255,255,0.1)',
-                  }}
-                >
-                  <div>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: '#ffffff',
-                        marginBottom: 4,
-                        opacity: 0.7,
-                      }}
-                    >
-                      💰 가격
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '1.2rem',
-                        fontWeight: 700,
-                        color: 'var(--accent)',
-                      }}
-                    >
-                      {document.price_per_token} ETH
-                    </div>
-                  </div>
-
-                  <div style={{ textAlign: 'right' }}>
-                    <div
-                      style={{
-                        fontSize: '0.75rem',
-                        color: '#ffffff',
-                        marginBottom: 4,
-                        opacity: 0.7,
-                      }}
-                    >
-                      🔢 남은 수량
-                    </div>
-                    <div
-                      style={{
-                        fontSize: '1.1rem',
-                        fontWeight: 700,
-                        color: document.amount > 0 ? '#ffffff' : '#ef4444',
-                      }}
-                    >
-                      {document.amount}개
-                    </div>
-                  </div>
-                </div>
-
-                {/* 판매자 */}
-                <div
-                  style={{
-                    marginTop: 12,
-                    fontSize: '0.8rem',
-                    color: '#ffffff',
-                    fontFamily: 'monospace',
-                    opacity: 0.7,
-                  }}
-                >
-                  👤 {short(document.seller)}
-                </div>
-
-                {/* 구매 버튼 (조건부 렌더링) */}
-                {!isMyDocument &&
-                  !alreadyOwns &&
-                  document.is_active &&
-                  document.amount > 0 &&
-                  userAddress && (
-                    <div
-                      style={{
-                        background: 'rgba(79,157,255,0.1)',
-                        padding: 24,
-                        borderRadius: 12,
-                        border: '1px solid rgba(79,157,255,0.3)',
-                      }}
-                    >
-                      <div
+                  {/* 상태 배지 */}
+                  <div
+                    style={{
+                      marginBottom: 16,
+                      display: 'flex',
+                      gap: 8,
+                      alignItems: 'center',
+                    }}
+                  >
+                    {document.is_active && document.amount > 0 ? (
+                      <span
                         style={{
-                          display: 'flex',
-                          gap: 16,
-                          alignItems: 'end',
-                          marginBottom: 16,
-                        }}
-                      >
-                        <div style={{ flex: 1 }}>
-                          <label
-                            style={{
-                              display: 'block',
-                              fontSize: '0.9rem',
-                              fontWeight: 600,
-                              color: '#ffffff',
-                              marginBottom: 8,
-                            }}
-                          >
-                            🔢 구매 수량
-                          </label>
-                          <input
-                            type="number"
-                            min="1"
-                            max={document.amount}
-                            value={quantity}
-                            onChange={(e) =>
-                              setQuantity(parseInt(e.target.value) || 1)
-                            }
-                            style={{
-                              width: '100%',
-                              padding: '12px 16px',
-                              background: 'rgba(0,0,0,0.3)',
-                              border: '1px solid rgba(255,255,255,0.1)',
-                              borderRadius: 8,
-                              color: '#ffffff',
-                              fontSize: '1rem',
-                            }}
-                          />
-                        </div>
-
-                        <div style={{ flex: 1 }}>
-                          <label
-                            style={{
-                              display: 'block',
-                              fontSize: '0.9rem',
-                              fontWeight: 600,
-                              color: '#ffffff',
-                              marginBottom: 8,
-                            }}
-                          >
-                            💳 총 가격
-                          </label>
-                          <div
-                            style={{
-                              padding: '12px 16px',
-                              background: 'rgba(0,0,0,0.3)',
-                              border: '1px solid rgba(79,157,255,0.3)',
-                              borderRadius: 8,
-                              fontSize: '1.2rem',
-                              fontWeight: 700,
-                              color: 'var(--accent)',
-                            }}
-                          >
-                            {totalPrice} ETH
-                          </div>
-                        </div>
-                      </div>
-
-                      <button
-                        onClick={handlePurchase}
-                        disabled={purchasing}
-                        className="btn btn-primary"
-                        style={{
-                          width: '100%',
-                          padding: '16px',
-                          fontSize: '1.1rem',
+                          padding: '4px 12px',
+                          borderRadius: 12,
+                          fontSize: '0.75rem',
                           fontWeight: 600,
-                          cursor: purchasing ? 'not-allowed' : 'pointer',
-                          opacity: purchasing ? 0.6 : 1,
-                          marginBottom: 16,
+                          background: 'rgba(34,197,94,0.2)',
+                          color: '#22c55e',
                         }}
                       >
-                        {purchasing ? '⏳ 구매 처리 중...' : '🛒 구매하기'}
-                      </button>
+                        ✅ 판매중
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          padding: '4px 12px',
+                          borderRadius: 12,
+                          fontSize: '0.75rem',
+                          fontWeight: 600,
+                          background: 'rgba(239,68,68,0.2)',
+                          color: '#ef4444',
+                        }}
+                      >
+                        ❌ 품절
+                      </span>
+                    )}
+                    <span style={{ fontSize: '2rem' }}>
+                      {getFileIcon(document.file_url)}
+                    </span>
+                  </div>
 
-                      {/* 무료 ETH 받기 안내 */}
+                  {/* 제목 */}
+                  <h3
+                    style={{
+                      fontSize: '1.3rem',
+                      fontWeight: 700,
+                      color: '#ffffff',
+                      marginBottom: 12,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {document.title}
+                  </h3>
+
+                  {/* 설명 */}
+                  <p
+                    style={{
+                      fontSize: '0.9rem',
+                      color: '#ffffff',
+                      marginBottom: 16,
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      opacity: 0.8,
+                      minHeight: 45,
+                    }}
+                  >
+                    {document.description}
+                  </p>
+
+                  {/* 정보 */}
+                  <div
+                    style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      paddingTop: 16,
+                      borderTop: '1px solid rgba(255,255,255,0.1)',
+                    }}
+                  >
+                    <div>
                       <div
                         style={{
-                          background: 'rgba(255,193,7,0.1)',
-                          padding: 16,
-                          borderRadius: 8,
-                          border: '1px solid rgba(255,193,7,0.3)',
+                          fontSize: '0.75rem',
+                          color: '#ffffff',
+                          marginBottom: 4,
+                          opacity: 0.7,
                         }}
                       >
-                        <div
-                          style={{
-                            fontSize: '0.85rem',
-                            color: '#ffc107',
-                            marginBottom: 8,
-                            fontWeight: 600,
-                          }}
-                        >
-                          💰 테스트용 ETH가 필요하신가요?
-                        </div>
-                        <div
-                          style={{
-                            fontSize: '0.8rem',
-                            color: '#ffffff',
-                            opacity: 0.8,
-                            lineHeight: 1.6,
-                          }}
-                        >
-                          <a
-                            href="https://sepoliafaucet.com"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            style={{
-                              color: 'var(--accent)',
-                              textDecoration: 'underline',
-                              fontWeight: 600,
-                            }}
-                          >
-                            Sepolia Faucet
-                          </a>
-                          에서 무료로 테스트 ETH를 받을 수 있습니다.
-                          <br />
-                          <span style={{ opacity: 0.7, fontSize: '0.75rem' }}>
-                            (Alchemy 계정 필요 / 하루 0.5 ETH 제공)
-                          </span>
-                        </div>
+                        💰 가격
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '1.2rem',
+                          fontWeight: 700,
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        {document.price_per_token} ETH
                       </div>
                     </div>
-                  )}
-              </div>
-            ))}
+
+                    <div style={{ textAlign: 'right' }}>
+                      <div
+                        style={{
+                          fontSize: '0.75rem',
+                          color: '#ffffff',
+                          marginBottom: 4,
+                          opacity: 0.7,
+                        }}
+                      >
+                        🔢 남은 수량
+                      </div>
+                      <div
+                        style={{
+                          fontSize: '1.1rem',
+                          fontWeight: 700,
+                          color: document.amount > 0 ? '#ffffff' : '#ef4444',
+                        }}
+                      >
+                        {document.amount}개
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 판매자 */}
+                  <div
+                    style={{
+                      marginTop: 12,
+                      paddingTop: 12,
+                      borderTop: '1px solid rgba(255,255,255,0.1)',
+                      fontSize: '0.8rem',
+                      color: '#ffffff',
+                      fontFamily: 'monospace',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}
+                  >
+                    <span style={{ opacity: 0.7 }}>
+                      👤 {short(document.seller)}
+                    </span>
+                    {isMyDoc && (
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 12,
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          background: 'rgba(79,157,255,0.2)',
+                          color: 'var(--accent)',
+                        }}
+                      >
+                        📝 내 문서
+                      </span>
+                    )}
+                    {isOwned && !isMyDoc && (
+                      <span
+                        style={{
+                          padding: '4px 10px',
+                          borderRadius: 12,
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          background: 'rgba(123,228,162,0.2)',
+                          color: 'rgb(123,228,162)',
+                        }}
+                      >
+                        ✅ 소유중
+                      </span>
+                    )}
+                  </div>
+
+                  {/* 구매 버튼 */}
+                  <button
+                    onClick={(e) => {
+                      if (canPurchase) {
+                        handleBuyNow(document, e);
+                      } else if (!userAddress) {
+                        e.stopPropagation();
+                        alert('지갑을 먼저 연결해주세요');
+                      } else if (isOwned) {
+                        e.stopPropagation();
+                        router.push('/dashboard');
+                      }
+                    }}
+                    disabled={
+                      purchasing === document.doc_id ||
+                      (isMyDoc as boolean) ||
+                      (!canPurchase && !isOwned)
+                    }
+                    className={`btn ${
+                      isOwned ? 'btn-secondary' : 'btn-primary'
+                    }`}
+                    style={{
+                      width: '100%',
+                      padding: '12px',
+                      fontSize: '0.95rem',
+                      fontWeight: 600,
+                      marginTop: 16,
+                      opacity:
+                        purchasing === document.doc_id ||
+                        (isMyDoc as boolean) ||
+                        (!canPurchase && !isOwned)
+                          ? 0.6
+                          : 1,
+                      cursor:
+                        purchasing === document.doc_id ||
+                        (isMyDoc as boolean) ||
+                        (!canPurchase && !isOwned)
+                          ? 'not-allowed'
+                          : 'pointer',
+                    }}
+                  >
+                    {purchasing === document.doc_id
+                      ? '⏳ 구매 중...'
+                      : !userAddress
+                      ? '🦊 지갑 연결 필요'
+                      : isMyDoc
+                      ? '📝 내 문서'
+                      : isOwned
+                      ? '📥 대시보드에서 다운로드'
+                      : document.amount === 0
+                      ? '❌ 품절'
+                      : '💳 구매하기'}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
       </div>
