@@ -172,16 +172,27 @@ export default function MarketplacePage() {
       setPurchasing(doc.doc_id);
 
       const quantity = 1;
+      const basePrice = parseFloat(doc.price_per_token);
+      const fee = basePrice * 0.05; // 5% 수수료
+      const totalPrice = basePrice + fee;
 
       if (
         confirm(
-          `"${doc.title}"을(를) ${doc.price_per_token} ETH에 구매하시겠습니까?`
+          `"${doc.title}"을(를) 구매하시겠습니까?\n\n💰 가격: ${
+            doc.price_per_token
+          } ETH\n💳 수수료 (5%): ${fee.toFixed(
+            6
+          )} ETH\n━━━━━━━━━━━━━━━━\n📊 총 결제 금액: ${totalPrice.toFixed(
+            6
+          )} ETH`
         )
       ) {
         console.log('구매 시작:', {
           doc_id: doc.doc_id,
           quantity,
           price: doc.price_per_token,
+          fee: fee.toFixed(6),
+          total: totalPrice.toFixed(6),
         });
 
         // 블록체인에서 구매
@@ -208,7 +219,11 @@ export default function MarketplacePage() {
         setOwnedDocuments((prev) => new Set([...prev, doc.doc_id]));
 
         alert(
-          `✅ 구매 완료!\n\n📄 문서: ${doc.title}\n⛓️ TX: ${txHash.slice(
+          `✅ 구매 완료!\n\n📄 문서: ${
+            doc.title
+          }\n💰 결제 금액: ${totalPrice.toFixed(6)} ETH\n  ∟ 가격: ${
+            doc.price_per_token
+          } ETH\n  ∟ 수수료: ${fee.toFixed(6)} ETH\n⛓️ TX: ${txHash.slice(
             0,
             20
           )}...\n\n대시보드에서 다운로드할 수 있습니다.`
@@ -483,6 +498,34 @@ export default function MarketplacePage() {
                       </div>
                     </div>
                   </div>
+
+                  {/* 수수료 안내 */}
+                  {canPurchase && (
+                    <div
+                      style={{
+                        marginTop: 12,
+                        padding: 10,
+                        background: 'rgba(79,157,255,0.1)',
+                        border: '1px solid rgba(79,157,255,0.2)',
+                        borderRadius: 8,
+                        fontSize: '0.75rem',
+                        color: '#ffffff',
+                        opacity: 0.9,
+                      }}
+                    >
+                      💳 총 결제 금액:{' '}
+                      <strong style={{ color: 'var(--accent)' }}>
+                        {(parseFloat(document.price_per_token) * 1.05).toFixed(
+                          6
+                        )}{' '}
+                        ETH
+                      </strong>
+                      <br />
+                      <span style={{ fontSize: '0.7rem', opacity: 0.7 }}>
+                        (수수료 5% 포함)
+                      </span>
+                    </div>
+                  )}
 
                   {/* 판매자 */}
                   <div

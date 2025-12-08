@@ -7,23 +7,29 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 // 컨트랙트 주소 유효성 검사
 if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
   console.error('❌ CONTRACT_ADDRESS가 설정되지 않았습니다!');
-  console.error('📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.');
+  console.error(
+    '📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.'
+  );
 }
 
 export async function getDocuTradeContract() {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
-    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
+    throw new Error(
+      '컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.'
+    );
   }
-  
+
   const signer = await getSigner();
   return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, signer);
 }
 
 export async function getDocuTradeContractReadOnly() {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
-    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
+    throw new Error(
+      '컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.'
+    );
   }
-  
+
   const provider = new ethers.BrowserProvider((window as any).ethereum);
   return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, provider);
 }
@@ -63,11 +69,11 @@ export async function registerDocument(
       try {
         const parsed = contract.interface.parseLog({
           topics: [...log.topics],
-          data: log.data
+          data: log.data,
         });
-        
+
         console.log('이벤트 발견:', parsed?.name);
-        
+
         if (parsed?.name === 'DocumentRegistered') {
           const docId = Number(parsed.args[0]);
           console.log('✅ 문서 ID 추출 성공:', docId);
@@ -83,7 +89,7 @@ export async function registerDocument(
     const totalDocs = await contract.getTotalDocuments();
     const docId = Number(totalDocs);
     console.log('✅ 최신 문서 ID:', docId);
-    
+
     return docId;
   } catch (error) {
     console.error('❌ 문서 등록 실패:', error);
@@ -95,24 +101,27 @@ export async function registerDocument(
 export async function deactivateDocument(docId: number) {
   try {
     const contract = await getDocuTradeContract();
-    
+
     // 컨트랙트에 있는 함수명 확인
     const fragments = contract.interface.fragments;
-    console.log('📋 컨트랙트 함수 목록:', fragments.map((f: any) => f.name));
-    
+    console.log(
+      '📋 컨트랙트 함수 목록:',
+      fragments.map((f: any) => f.name)
+    );
+
     // 가능한 함수명들
     const possibleFunctions = [
       'deactivateDocument',
-      'deactivateSale', 
+      'deactivateSale',
       'stopSale',
       'pauseSale',
       'cancelDocument',
-      'disableDocument'
+      'disableDocument',
     ];
-    
+
     let tx;
     let foundFunction = false;
-    
+
     for (const funcName of possibleFunctions) {
       try {
         if (typeof contract[funcName] === 'function') {
@@ -126,17 +135,19 @@ export async function deactivateDocument(docId: number) {
         continue;
       }
     }
-    
+
     if (!foundFunction) {
       // 함수가 없으면 Supabase만 업데이트
-      console.log('⚠️ 컨트랙트에 판매중단 함수가 없습니다. Supabase만 업데이트합니다.');
+      console.log(
+        '⚠️ 컨트랙트에 판매중단 함수가 없습니다. Supabase만 업데이트합니다.'
+      );
       return null;
     }
-    
+
     console.log('판매 중단 트랜잭션:', tx.hash);
     const receipt = await tx.wait();
     console.log('판매 중단 완료:', receipt);
-    
+
     return tx.hash;
   } catch (error) {
     console.error('판매 중단 실패:', error);
@@ -151,11 +162,36 @@ export async function buyDocuments(
   pricePerToken: string
 ) {
   try {
+    const signer = await getSigner();
     const contract = await getDocuTradeContract();
-    const totalPrice = ethers.parseEther(pricePerToken) * BigInt(quantity);
+    const basePrice = ethers.parseEther(pricePerToken) * BigInt(quantity);
 
+    // 5% 수수료 계산
+    const fee = (basePrice * BigInt(5)) / BigInt(100);
+    const totalPrice = basePrice + fee;
+
+    // 수수료 받을 주소
+    const feeRecipient = '0x278C707E2d27593e4e37D33010Af547c26939099';
+
+    console.log('💰 가격 정보:');
+    console.log('  - 기본 가격:', ethers.formatEther(basePrice), 'ETH');
+    console.log('  - 수수료 (5%):', ethers.formatEther(fee), 'ETH');
+    console.log('  - 총 가격:', ethers.formatEther(totalPrice), 'ETH');
+    console.log('  - 수수료 수신 주소:', feeRecipient);
+
+    // 1. 먼저 수수료를 지정된 주소로 전송
+    console.log('📤 수수료 전송 중...');
+    const feeTx = await signer.sendTransaction({
+      to: feeRecipient,
+      value: fee,
+    });
+    await feeTx.wait();
+    console.log('✅ 수수료 전송 완료:', feeTx.hash);
+
+    // 2. 문서 구매 (기본 가격만 전송)
+    console.log('📄 문서 구매 진행 중...');
     const tx = await contract.buyDocuments(docId, quantity, {
-      value: totalPrice,
+      value: basePrice,
     });
 
     console.log('구매 트랜잭션:', tx.hash);
@@ -186,7 +222,7 @@ export async function getDocumentByToken(tokenId: number) {
   try {
     const contract = await getDocuTradeContractReadOnly();
     const doc = await contract.getDocumentByToken(tokenId);
-    
+
     return {
       docId: Number(doc.docId),
       title: doc.title,
@@ -204,7 +240,10 @@ export async function getDocumentByToken(tokenId: number) {
 }
 
 // 문서 소유 여부 확인
-export async function ownsDocument(userAddress: string, docId: number): Promise<boolean> {
+export async function ownsDocument(
+  userAddress: string,
+  docId: number
+): Promise<boolean> {
   try {
     const contract = await getDocuTradeContractReadOnly();
     return await contract.ownsDocument(userAddress, docId);
@@ -232,7 +271,7 @@ export async function getContractInfo() {
     const name = await contract.name();
     const symbol = await contract.symbol();
     const totalDocs = await contract.getTotalDocuments();
-    
+
     return {
       name,
       symbol,
@@ -262,7 +301,7 @@ export async function getDocument(docId: number) {
   try {
     const contract = await getDocuTradeContractReadOnly();
     const doc = await contract.getDocument(docId);
-    
+
     return {
       docId: Number(doc.docId),
       title: doc.title,
