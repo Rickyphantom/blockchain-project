@@ -179,6 +179,52 @@ export async function buyDocuments(
     console.log('  - 총 가격:', ethers.formatEther(totalPrice), 'ETH');
     console.log('  - 수수료 수신 주소:', feeRecipient);
 
+    // 사용자 주소 및 잔액 확인
+    const userAddress = await signer.getAddress();
+    console.log('👤 사용자 주소:', userAddress);
+
+    // provider를 통해 잔액 조회
+    const provider = signer.provider;
+    if (!provider) {
+      throw new Error('Provider를 찾을 수 없습니다.');
+    }
+
+    // Sepolia 네트워크 확인 (chainId: 11155111)
+    const network = await provider.getNetwork();
+    const chainId = Number(network.chainId);
+    console.log('🌐 현재 네트워크:', network.name, '(chainId:', chainId + ')');
+
+    if (chainId !== 11155111) {
+      throw new Error(
+        '❌ Sepolia 테스트넷으로 전환해주세요. 현재 네트워크: ' + network.name
+      );
+    }
+
+    const balance = await provider.getBalance(userAddress);
+    console.log('💳 현재 잔액:', ethers.formatEther(balance), 'SepoliaETH');
+
+    // 가스비 여유를 포함한 필요 금액 (0.01 ETH 여유)
+    const gasBuffer = ethers.parseEther('0.01');
+    const requiredBalance = totalPrice + gasBuffer;
+
+    console.log('📊 잔액 비교:');
+    console.log('  - 보유:', ethers.formatEther(balance), 'ETH');
+    console.log('  - 필요:', ethers.formatEther(requiredBalance), 'ETH');
+    console.log(
+      '  - 여유:',
+      ethers.formatEther(balance - requiredBalance),
+      'ETH'
+    );
+
+    if (balance < requiredBalance) {
+      const needed = ethers.formatEther(requiredBalance - balance);
+      throw new Error(
+        `잔액이 부족합니다. 약 ${needed} ETH가 더 필요합니다. (수수료 포함)\n현재 잔액: ${ethers.formatEther(
+          balance
+        )} ETH`
+      );
+    }
+
     // 1. 먼저 수수료를 지정된 주소로 전송
     console.log('📤 수수료 전송 중...');
     const feeTx = await signer.sendTransaction({
@@ -199,8 +245,19 @@ export async function buyDocuments(
     console.log('구매 완료:', receipt);
 
     return tx.hash;
-  } catch (error) {
+  } catch (error: any) {
     console.error('구매 실패:', error);
+
+    // 에러 메시지를 더 명확하게
+    if (
+      error.code === 'INSUFFICIENT_FUNDS' ||
+      error.message?.includes('insufficient funds')
+    ) {
+      throw new Error(
+        'ETH 잔액이 부족합니다. 가스비를 포함한 충분한 잔액이 필요합니다.'
+      );
+    }
+
     throw error;
   }
 }
