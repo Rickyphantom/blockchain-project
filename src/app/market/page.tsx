@@ -159,7 +159,9 @@ export default function MarketplacePage() {
     }
 
     if (ownedDocuments.has(doc.doc_id)) {
-      alert('⚠️ 이미 소유한 문서입니다. 대시보드에서 다운로드할 수 있습니다.');
+      alert(
+        '⚠️ 이미 소유한 문서입니다. 대시보드에서 NFT 소유권 증명서를 확인할 수 있습니다.'
+      );
       return;
     }
 
@@ -226,7 +228,7 @@ export default function MarketplacePage() {
           } ETH\n  ∟ 수수료: ${fee.toFixed(6)} ETH\n⛓️ TX: ${txHash.slice(
             0,
             20
-          )}...\n\n대시보드에서 다운로드할 수 있습니다.`
+          )}...\n\n대시보드에서 NFT 소유권 증명서를 확인할 수 있습니다.`
         );
 
         // 문서 목록 새로고침
@@ -622,7 +624,7 @@ export default function MarketplacePage() {
                       : isMyDoc
                       ? '📝 내 문서'
                       : isOwned
-                      ? '📥 대시보드에서 다운로드'
+                      ? '🏆 대시보드에서 증명서 확인'
                       : document.amount === 0
                       ? '❌ 품절'
                       : '💳 구매하기'}
