@@ -7,23 +7,29 @@ const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
 // 컨트랙트 주소 유효성 검사
 if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
   console.error('❌ CONTRACT_ADDRESS가 설정되지 않았습니다!');
-  console.error('📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.');
+  console.error(
+    '📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.'
+  );
 }
 
 export async function getDocuTradeContract() {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
-    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
+    throw new Error(
+      '컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.'
+    );
   }
-  
+
   const signer = await getSigner();
   return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, signer);
 }
 
 export async function getDocuTradeContractReadOnly() {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
-    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
+    throw new Error(
+      '컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.'
+    );
   }
-  
+
   const provider = new ethers.BrowserProvider((window as any).ethereum);
   return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, provider);
 }
@@ -90,7 +96,12 @@ export async function getUserNFTs(userAddress: string): Promise<number[]> {
     const contract = await getDocuTradeContractReadOnly();
     const nfts = await contract.getUserNFTs(userAddress);
     return nfts.map((id: any) => Number(id));
-  } catch (error) {
+  } catch (error: any) {
+    // BAD_DATA 에러는 NFT가 없는 것이므로 조용히 처리
+    if (error?.code === 'BAD_DATA') {
+      console.log('ℹ️ NFT가 없습니다.');
+      return [];
+    }
     console.error('NFT 조회 실패:', error);
     return [];
   }
@@ -101,7 +112,7 @@ export async function getDocumentByToken(tokenId: number) {
   try {
     const contract = await getDocuTradeContractReadOnly();
     const doc = await contract.getDocumentByToken(tokenId);
-    
+
     return {
       docId: Number(doc.docId),
       title: doc.title,
@@ -119,7 +130,10 @@ export async function getDocumentByToken(tokenId: number) {
 }
 
 // 문서 소유 여부 확인
-export async function ownsDocument(userAddress: string, docId: number): Promise<boolean> {
+export async function ownsDocument(
+  userAddress: string,
+  docId: number
+): Promise<boolean> {
   try {
     const contract = await getDocuTradeContractReadOnly();
     return await contract.ownsDocument(userAddress, docId);
@@ -147,7 +161,7 @@ export async function getContractInfo() {
     const name = await contract.name();
     const symbol = await contract.symbol();
     const totalDocs = await contract.getTotalDocuments();
-    
+
     return {
       name,
       symbol,
@@ -177,7 +191,7 @@ export async function getDocument(docId: number) {
   try {
     const contract = await getDocuTradeContractReadOnly();
     const doc = await contract.getDocument(docId);
-    
+
     return {
       docId: Number(doc.docId),
       title: doc.title,

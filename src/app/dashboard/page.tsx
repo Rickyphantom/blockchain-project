@@ -12,7 +12,7 @@ interface Purchase {
   quantity: number;
   total_price: string;
   tx_hash: string;
-  created_at: string;
+  created_at?: string;
   documents: {
     title: string;
     description: string;
@@ -32,7 +32,7 @@ interface Sale {
   quantity: number;
   total_price: string;
   tx_hash: string;
-  created_at: string;
+  created_at?: string;
   buyer: string;
   documents: {
     title: string;
@@ -54,11 +54,14 @@ export default function Dashboard() {
   useEffect(() => {
     const init = async () => {
       try {
+        console.log('1. 지갑 연결 시작...');
         const signer = await getSigner();
         const address = await signer.getAddress();
         setUserAddress(address.toLowerCase());
+        console.log('2. 지갑 주소:', address);
 
         // 구매 내역 조회
+        console.log('3. 구매 내역 조회 시작...');
         const { data: purchaseData, error } = await supabase
           .from('purchases')
           .select(
@@ -70,21 +73,32 @@ export default function Dashboard() {
             )
           `
           )
-          .eq('buyer', address.toLowerCase())
-          .order('created_at', { ascending: false });
+          .eq('buyer', address.toLowerCase());
 
-        if (error) throw error;
+        if (error) {
+          console.error('구매 내역 조회 에러:', error);
+          throw error;
+        }
+        console.log('4. 구매 내역:', purchaseData);
         setPurchases(purchaseData || []);
 
         // 판매 내역 조회 (내가 올린 문서를 다른 사람이 구매한 내역)
-        const { data: docsData } = await supabase
+        console.log('5. 판매 내역 조회 시작...');
+        const { data: docsData, error: docsError } = await supabase
           .from('documents')
           .select('id')
           .eq('seller', address.toLowerCase());
 
+        if (docsError) {
+          console.error('문서 조회 에러:', docsError);
+        }
+
+        console.log('6. 내 문서 목록:', docsData);
+        console.log('6. 내 문서 목록:', docsData);
         const docIds = docsData?.map((d) => d.id) || [];
 
         if (docIds.length > 0) {
+          console.log('7. 판매 내역 조회 중... doc_ids:', docIds);
           const { data: salesData, error: salesError } = await supabase
             .from('purchases')
             .select(
@@ -96,37 +110,51 @@ export default function Dashboard() {
               )
             `
             )
-            .in('doc_id', docIds)
-            .order('created_at', { ascending: false });
+            .in('doc_id', docIds);
 
           if (salesError) {
             console.error('판매 내역 조회 실패:', salesError);
           } else {
+            console.log('8. 판매 내역:', salesData);
             setSales(salesData || []);
           }
+        } else {
+          console.log('7. 판매할 문서가 없음');
         }
 
         // NFT 조회
+        console.log('9. NFT 조회 시작...');
         const nftIds = await getUserNFTs(address);
+        console.log('10. NFT IDs:', nftIds);
         const nftDetails: NFTItem[] = [];
 
-        for (const tokenId of nftIds) {
-          try {
-            const doc = await getDocumentByToken(tokenId);
-            nftDetails.push({
-              tokenId,
-              docId: doc.docId,
-              title: doc.title,
-              description: doc.description,
-            });
-          } catch (error) {
-            console.error(`NFT ${tokenId} 조회 실패:`, error);
+        if (nftIds && nftIds.length > 0) {
+          for (const tokenId of nftIds) {
+            try {
+              console.log(`11. NFT ${tokenId} 정보 조회 중...`);
+              const doc = await getDocumentByToken(tokenId);
+              nftDetails.push({
+                tokenId,
+                docId: doc.docId,
+                title: doc.title,
+                description: doc.description,
+              });
+            } catch (error) {
+              console.error(`NFT ${tokenId} 조회 실패:`, error);
+            }
           }
         }
 
+        console.log('12. 최종 NFT 목록:', nftDetails);
         setNfts(nftDetails);
+        console.log('13. 데이터 로드 완료!');
       } catch (error) {
         console.error('데이터 로드 실패:', error);
+        console.error('에러 상세:', JSON.stringify(error, null, 2));
+        if (error instanceof Error) {
+          console.error('에러 메시지:', error.message);
+          console.error('에러 스택:', error.stack);
+        }
       } finally {
         setLoading(false);
       }
@@ -410,9 +438,11 @@ export default function Dashboard() {
                             color: 'var(--text-primary)',
                           }}
                         >
-                          {new Date(purchase.created_at).toLocaleString(
-                            'ko-KR'
-                          )}
+                          {purchase.created_at
+                            ? new Date(purchase.created_at).toLocaleString(
+                                'ko-KR'
+                              )
+                            : 'N/A'}
                         </div>
                       </div>
                       <div>
@@ -602,7 +632,9 @@ export default function Dashboard() {
                             color: 'var(--text-primary)',
                           }}
                         >
-                          {new Date(sale.created_at).toLocaleString('ko-KR')}
+                          {sale.created_at
+                            ? new Date(sale.created_at).toLocaleString('ko-KR')
+                            : 'N/A'}
                         </div>
                       </div>
                       <div>
