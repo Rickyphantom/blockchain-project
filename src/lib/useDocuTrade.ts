@@ -1,316 +1,315 @@
 import { ethers } from 'ethers';
 import { getSigner } from './web3';
-import DocuTradeABI from '@/contracts/DocuTrade.json';
 
 const CONTRACT_ADDRESS = process.env.NEXT_PUBLIC_CONTRACT_ADDRESS;
+
+// 새 컨트랙트 ABI (최소 필수 함수들만 정의)
+const DocuTradeABI = [
+  // 읽기 함수
+  "function paymentToken() view returns (address)",
+  "function airdropAmount() view returns (uint256)",
+  "function hasReceivedAirdrop(address) view returns (bool)",
+  "function listings(uint256) view returns (uint256 tokenId, address seller, uint256 price, bool isValue)",
+  "function ownerOf(uint256 tokenId) view returns (address)",
+  "function tokenURI(uint256 tokenId) view returns (string)",
+  "function balanceOf(address owner) view returns (uint256)",
+  "function name() view returns (string)",
+  "function symbol() view returns (string)",
+  // 쓰기 함수
+  "function requestAirdrop()",
+  "function mintNewNFT(string _tokenURI) returns (uint256)",
+  "function listNFT(uint256 _tokenId, uint256 _price)",
+  "function buyNFT(uint256 _tokenId)",
+  "function approve(address to, uint256 tokenId)",
+  "function setApprovalForAll(address operator, bool approved)",
+  // 이벤트
+  "event NFTMinted(uint256 indexed tokenId, address indexed creator, string uri)",
+  "event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price)",
+  "event NFTSold(uint256 indexed tokenId, address indexed buyer, address indexed seller, uint256 price)",
+  "event AirdropSent(address indexed receiver, uint256 amount)"
+];
 
 // 컨트랙트 주소 유효성 검사
 if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
   console.error('❌ CONTRACT_ADDRESS가 설정되지 않았습니다!');
-  console.error(
-    '📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.'
-  );
+  console.error('📝 .env.local 파일에 NEXT_PUBLIC_CONTRACT_ADDRESS를 설정하세요.');
 }
 
 export async function getDocuTradeContract() {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
-    throw new Error(
-      '컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.'
-    );
+    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
   }
-
+  
   const signer = await getSigner();
-  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, signer);
+  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI, signer);
 }
 
 export async function getDocuTradeContractReadOnly() {
   if (!CONTRACT_ADDRESS || CONTRACT_ADDRESS === 'undefined') {
-    throw new Error(
-      '컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.'
-    );
+    throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
   }
-
+  
   const provider = new ethers.BrowserProvider((window as any).ethereum);
-  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI as any, provider);
+  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI, provider);
 }
 
-// 문서 등록
-export async function registerDocument(
-  title: string,
-  fileUrl: string,
-  description: string,
-  price: string,
-  amount: number
-): Promise<number> {
+// ============ 타입 정의 ============
+export interface Listing {
+  tokenId: number;
+  seller: string;
+  price: string; // ETH 형식
+  isValue: boolean;
+}
+
+export interface NFTMetadata {
+  tokenId: number;
+  owner: string;
+  tokenURI: string;
+  listing?: Listing;
+}
+
+// ============ 타입 정의 ============
+export interface Listing {
+  tokenId: number;
+  seller: string;
+  price: string; // ETH 형식
+  isValue: boolean;
+}
+
+export interface NFTMetadata {
+  tokenId: number;
+  owner: string;
+  tokenURI: string;
+  listing?: Listing;
+}
+
+// ============ 1. 에어드랍 관련 함수 ============
+
+/**
+ * 토큰 에어드랍 요청
+ * 사용자당 1회만 가능
+ */
+export async function requestAirdrop() {
+  try {
+    const contract = await getDocuTradeContract();
+    const signer = await getSigner();
+    const address = await signer.getAddress();
+
+    // 이미 받았는지 확인
+    const hasReceived = await contract.hasReceivedAirdrop(address);
+    if (hasReceived) {
+      throw new Error('이미 에어드랍을 받았습니다.');
+    }
+
+    const tx = await contract.requestAirdrop();
+    console.log('에어드랍 트랜잭션 전송:', tx.hash);
+    const receipt = await tx.wait();
+    console.log('에어드랍 완료:', receipt);
+
+    return tx.hash;
+  } catch (error) {
+    console.error('에어드랍 실패:', error);
+    throw error;
+  }
+}
+
+/**
+ * 에어드랍 수령 여부 확인
+ */
+export async function checkAirdropStatus(address: string): Promise<boolean> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    return await contract.hasReceivedAirdrop(address);
+  } catch (error) {
+    console.error('에어드랍 상태 확인 실패:', error);
+    return false;
+  }
+}
+
+/**
+ * 에어드랍 금액 조회
+ */
+export async function getAirdropAmount(): Promise<string> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const amount = await contract.airdropAmount();
+    return ethers.formatEther(amount);
+  } catch (error) {
+    console.error('에어드랍 금액 조회 실패:', error);
+    return '0';
+  }
+}
+
+/**
+ * 결제 토큰 주소 조회
+ */
+export async function getPaymentTokenAddress(): Promise<string> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    return await contract.paymentToken();
+  } catch (error) {
+    console.error('토큰 주소 조회 실패:', error);
+    return '';
+  }
+}
+
+// ============ 2. NFT 발행 (민팅) 함수 ============
+
+/**
+ * 새 NFT 발행
+ * @param tokenURI - 메타데이터 URI (IPFS, HTTP 등)
+ * @returns 발행된 토큰 ID
+ */
+export async function mintNewNFT(tokenURI: string): Promise<number> {
+  try {
+    const contract = await getDocuTradeContract();
+    const tx = await contract.mintNewNFT(tokenURI);
+    
+    console.log('NFT 발행 트랜잭션:', tx.hash);
+    const receipt = await tx.wait();
+    console.log('NFT 발행 완료:', receipt);
+
+    // 이벤트에서 tokenId 추출
+    const event = receipt.logs.find((log: any) => {
+      try {
+        const parsed = contract.interface.parseLog(log);
+        return parsed?.name === 'NFTMinted';
+      } catch {
+        return false;
+      }
+    });
+
+    if (event) {
+      const parsed = contract.interface.parseLog(event);
+      return Number(parsed?.args.tokenId);
+    }
+
+    throw new Error('토큰 ID를 찾을 수 없습니다.');
+  } catch (error) {
+    console.error('NFT 발행 실패:', error);
+    throw error;
+  }
+}
+
+// ============ 3. 마켓플레이스 함수 ============
+
+/**
+ * NFT를 마켓에 등록 (판매 시작)
+ * @param tokenId - NFT 토큰 ID
+ * @param price - 판매 가격 (ERC-20 토큰 단위, ETH 형식 문자열)
+ */
+export async function listNFT(tokenId: number, price: string) {
   try {
     const contract = await getDocuTradeContract();
     const priceInWei = ethers.parseEther(price);
 
-    console.log('📝 문서 등록 시작...');
-    console.log('- 제목:', title);
-    console.log('- 가격:', price, 'ETH');
-    console.log('- 수량:', amount);
+    // 먼저 컨트랙트에 NFT 제어 권한 부여
+    const approveTx = await contract.setApprovalForAll(CONTRACT_ADDRESS, true);
+    console.log('권한 부여 트랜잭션:', approveTx.hash);
+    await approveTx.wait();
 
-    const tx = await contract.registerDocument(
-      title,
-      fileUrl,
-      description,
-      priceInWei,
-      amount
-    );
-
-    console.log('⏳ 트랜잭션 전송:', tx.hash);
+    // 판매 등록
+    const tx = await contract.listNFT(tokenId, priceInWei);
+    console.log('판매 등록 트랜잭션:', tx.hash);
     const receipt = await tx.wait();
-    console.log('✅ 트랜잭션 완료:', receipt);
-
-    // 이벤트에서 docId 추출
-    console.log('🔍 이벤트 로그 확인 중...');
-    for (const log of receipt.logs) {
-      try {
-        const parsed = contract.interface.parseLog({
-          topics: [...log.topics],
-          data: log.data,
-        });
-
-        console.log('이벤트 발견:', parsed?.name);
-
-        if (parsed?.name === 'DocumentRegistered') {
-          const docId = Number(parsed.args[0]);
-          console.log('✅ 문서 ID 추출 성공:', docId);
-          return docId;
-        }
-      } catch (e) {
-        // 파싱 실패한 로그는 무시
-      }
-    }
-
-    // 이벤트를 찾지 못한 경우 getTotalDocuments로 최신 ID 가져오기
-    console.log('⚠️ 이벤트에서 ID를 찾지 못함. getTotalDocuments 사용...');
-    const totalDocs = await contract.getTotalDocuments();
-    const docId = Number(totalDocs);
-    console.log('✅ 최신 문서 ID:', docId);
-
-    return docId;
-  } catch (error) {
-    console.error('❌ 문서 등록 실패:', error);
-    throw error;
-  }
-}
-
-// 판매 중단 (Supabase만 업데이트)
-export async function deactivateDocument(docId: number) {
-  try {
-    const contract = await getDocuTradeContract();
-
-    // 컨트랙트에 있는 함수명 확인
-    const fragments = contract.interface.fragments;
-    console.log(
-      '📋 컨트랙트 함수 목록:',
-      fragments.map((f: any) => f.name)
-    );
-
-    // 가능한 함수명들
-    const possibleFunctions = [
-      'deactivateDocument',
-      'deactivateSale',
-      'stopSale',
-      'pauseSale',
-      'cancelDocument',
-      'disableDocument',
-    ];
-
-    let tx;
-    let foundFunction = false;
-
-    for (const funcName of possibleFunctions) {
-      try {
-        if (typeof contract[funcName] === 'function') {
-          console.log(`✅ 함수 발견: ${funcName}`);
-          tx = await contract[funcName](docId);
-          foundFunction = true;
-          break;
-        }
-      } catch (e) {
-        // 함수가 없으면 다음 시도
-        continue;
-      }
-    }
-
-    if (!foundFunction) {
-      // 함수가 없으면 Supabase만 업데이트
-      console.log(
-        '⚠️ 컨트랙트에 판매중단 함수가 없습니다. Supabase만 업데이트합니다.'
-      );
-      return null;
-    }
-
-    console.log('판매 중단 트랜잭션:', tx.hash);
-    const receipt = await tx.wait();
-    console.log('판매 중단 완료:', receipt);
+    console.log('판매 등록 완료:', receipt);
 
     return tx.hash;
   } catch (error) {
-    console.error('판매 중단 실패:', error);
+    console.error('판매 등록 실패:', error);
     throw error;
   }
 }
 
-// 문서 구매
-export async function buyDocuments(
-  docId: number,
-  quantity: number,
-  pricePerToken: string
-) {
+/**
+ * NFT 구매
+ * @param tokenId - 구매할 NFT 토큰 ID
+ * 
+ * 주의: 구매 전 반드시 ERC-20 토큰 approve 필요!
+ * 프론트엔드에서 먼저 paymentToken.approve(contractAddress, price) 호출
+ */
+export async function buyNFT(tokenId: number) {
   try {
-    const signer = await getSigner();
     const contract = await getDocuTradeContract();
-    const basePrice = ethers.parseEther(pricePerToken) * BigInt(quantity);
-
-    // 5% 수수료 계산
-    const fee = (basePrice * BigInt(5)) / BigInt(100);
-    const totalPrice = basePrice + fee;
-
-    // 수수료 받을 주소
-    const feeRecipient = '0x278C707E2d27593e4e37D33010Af547c26939099';
-
-    console.log('💰 가격 정보:');
-    console.log('  - 기본 가격:', ethers.formatEther(basePrice), 'ETH');
-    console.log('  - 수수료 (5%):', ethers.formatEther(fee), 'ETH');
-    console.log('  - 총 가격:', ethers.formatEther(totalPrice), 'ETH');
-    console.log('  - 수수료 수신 주소:', feeRecipient);
-
-    // 사용자 주소 및 잔액 확인
-    const userAddress = await signer.getAddress();
-    console.log('👤 사용자 주소:', userAddress);
-
-    // provider를 통해 잔액 조회
-    const provider = signer.provider;
-    if (!provider) {
-      throw new Error('Provider를 찾을 수 없습니다.');
+    
+    // 판매 정보 확인
+    const listing = await contract.listings(tokenId);
+    if (!listing.isValue) {
+      throw new Error('판매 중이 아닌 NFT입니다.');
     }
 
-    // Sepolia 네트워크 확인 (chainId: 11155111)
-    const network = await provider.getNetwork();
-    const chainId = Number(network.chainId);
-    console.log('🌐 현재 네트워크:', network.name, '(chainId:', chainId + ')');
-
-    if (chainId !== 11155111) {
-      throw new Error(
-        '❌ Sepolia 테스트넷으로 전환해주세요. 현재 네트워크: ' + network.name
-      );
-    }
-
-    const balance = await provider.getBalance(userAddress);
-    console.log('💳 현재 잔액:', ethers.formatEther(balance), 'SepoliaETH');
-
-    // 가스비 여유를 포함한 필요 금액 (0.01 ETH 여유)
-    const gasBuffer = ethers.parseEther('0.01');
-    const requiredBalance = totalPrice + gasBuffer;
-
-    console.log('📊 잔액 비교:');
-    console.log('  - 보유:', ethers.formatEther(balance), 'ETH');
-    console.log('  - 필요:', ethers.formatEther(requiredBalance), 'ETH');
-    console.log(
-      '  - 여유:',
-      ethers.formatEther(balance - requiredBalance),
-      'ETH'
-    );
-
-    if (balance < requiredBalance) {
-      const needed = ethers.formatEther(requiredBalance - balance);
-      throw new Error(
-        `잔액이 부족합니다. 약 ${needed} ETH가 더 필요합니다. (수수료 포함)\n현재 잔액: ${ethers.formatEther(
-          balance
-        )} ETH`
-      );
-    }
-
-    // 1. 먼저 수수료를 지정된 주소로 전송
-    console.log('📤 수수료 전송 중...');
-    const feeTx = await signer.sendTransaction({
-      to: feeRecipient,
-      value: fee,
-    });
-    await feeTx.wait();
-    console.log('✅ 수수료 전송 완료:', feeTx.hash);
-
-    // 2. 문서 구매 (기본 가격만 전송)
-    console.log('📄 문서 구매 진행 중...');
-    const tx = await contract.buyDocuments(docId, quantity, {
-      value: basePrice,
-    });
-
+    const tx = await contract.buyNFT(tokenId);
     console.log('구매 트랜잭션:', tx.hash);
     const receipt = await tx.wait();
     console.log('구매 완료:', receipt);
 
     return tx.hash;
-  } catch (error: any) {
-    console.error('구매 실패:', error);
-
-    // 에러 메시지를 더 명확하게
-    if (
-      error.code === 'INSUFFICIENT_FUNDS' ||
-      error.message?.includes('insufficient funds')
-    ) {
-      throw new Error(
-        'ETH 잔액이 부족합니다. 가스비를 포함한 충분한 잔액이 필요합니다.'
-      );
-    }
-
+  } catch (error) {
+    console.error('NFT 구매 실패:', error);
     throw error;
   }
 }
 
-// 사용자의 모든 NFT 조회
+/**
+ * 특정 NFT의 판매 정보 조회
+ */
+export async function getListing(tokenId: number): Promise<Listing | null> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    const listing = await contract.listings(tokenId);
+    
+    if (!listing.isValue) {
+      return null;
+    }
+
+    return {
+      tokenId: Number(listing.tokenId),
+      seller: listing.seller,
+      price: ethers.formatEther(listing.price),
+      isValue: listing.isValue,
+    };
+  } catch (error) {
+    console.error('판매 정보 조회 실패:', error);
+    return null;
+  }
+}
+
+// ============ 4. NFT 조회 함수 ============
+
+/**
+ * 사용자가 소유한 모든 NFT 토큰 ID 조회
+ * ERC721 balanceOf + 순회로 구현
+ */
 export async function getUserNFTs(userAddress: string): Promise<number[]> {
   try {
     const contract = await getDocuTradeContractReadOnly();
-    const nfts = await contract.getUserNFTs(userAddress);
-    return nfts.map((id: any) => Number(id));
+    const balance = await contract.balanceOf(userAddress);
+    const tokenIds: number[] = [];
+
+    // 간단한 방법: 1부터 순회하며 소유자 확인 (가스비 없음, 읽기만)
+    // 실제 프로덕션에서는 이벤트 로그를 파싱하는 것이 더 효율적
+    for (let i = 1; i <= 100; i++) { // 최대 100개까지 확인
+      try {
+        const owner = await contract.ownerOf(i);
+        if (owner.toLowerCase() === userAddress.toLowerCase()) {
+          tokenIds.push(i);
+        }
+      } catch {
+        // 토큰이 존재하지 않거나 burn됨
+        continue;
+      }
+    }
+
+    return tokenIds;
   } catch (error) {
     console.error('NFT 조회 실패:', error);
     return [];
   }
 }
 
-// NFT로 문서 정보 조회
-export async function getDocumentByToken(tokenId: number) {
-  try {
-    const contract = await getDocuTradeContractReadOnly();
-    const doc = await contract.getDocumentByToken(tokenId);
-
-    return {
-      docId: Number(doc.docId),
-      title: doc.title,
-      fileUrl: doc.fileUrl,
-      description: doc.description,
-      seller: doc.seller,
-      pricePerToken: ethers.formatEther(doc.pricePerToken),
-      amount: Number(doc.amount),
-      isActive: doc.isActive,
-    };
-  } catch (error) {
-    console.error('문서 조회 실패:', error);
-    throw error;
-  }
-}
-
-// 문서 소유 여부 확인
-export async function ownsDocument(
-  userAddress: string,
-  docId: number
-): Promise<boolean> {
-  try {
-    const contract = await getDocuTradeContractReadOnly();
-    return await contract.ownsDocument(userAddress, docId);
-  } catch (error) {
-    console.error('소유권 확인 실패:', error);
-    return false;
-  }
-}
-
-// NFT 소유자 조회
+/**
+ * 특정 NFT의 소유자 조회
+ */
 export async function getNFTOwner(tokenId: number): Promise<string | null> {
   try {
     const contract = await getDocuTradeContractReadOnly();
@@ -321,19 +320,68 @@ export async function getNFTOwner(tokenId: number): Promise<string | null> {
   }
 }
 
-// 컨트랙트 정보 조회
+/**
+ * NFT 메타데이터 URI 조회
+ */
+export async function getTokenURI(tokenId: number): Promise<string> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    return await contract.tokenURI(tokenId);
+  } catch (error) {
+    console.error('TokenURI 조회 실패:', error);
+    return '';
+  }
+}
+
+/**
+ * NFT 전체 정보 조회 (소유자 + URI + 판매 정보)
+ */
+export async function getNFTMetadata(tokenId: number): Promise<NFTMetadata | null> {
+  try {
+    const contract = await getDocuTradeContractReadOnly();
+    
+    const owner = await contract.ownerOf(tokenId);
+    const tokenURI = await contract.tokenURI(tokenId);
+    const listingData = await contract.listings(tokenId);
+
+    const listing = listingData.isValue ? {
+      tokenId: Number(listingData.tokenId),
+      seller: listingData.seller,
+      price: ethers.formatEther(listingData.price),
+      isValue: listingData.isValue,
+    } : undefined;
+
+    return {
+      tokenId,
+      owner,
+      tokenURI,
+      listing,
+    };
+  } catch (error) {
+    console.error('NFT 메타데이터 조회 실패:', error);
+    return null;
+  }
+}
+
+// ============ 5. 컨트랙트 정보 조회 ============
+
+/**
+ * 컨트랙트 기본 정보 조회
+ */
 export async function getContractInfo() {
   try {
     const contract = await getDocuTradeContractReadOnly();
     const name = await contract.name();
     const symbol = await contract.symbol();
-    const totalDocs = await contract.getTotalDocuments();
-
+    const paymentToken = await contract.paymentToken();
+    const airdropAmount = await contract.airdropAmount();
+    
     return {
       name,
       symbol,
-      totalDocs: Number(totalDocs),
       address: CONTRACT_ADDRESS || '',
+      paymentToken,
+      airdropAmount: ethers.formatEther(airdropAmount),
     };
   } catch (error) {
     console.error('컨트랙트 정보 조회 실패:', error);
@@ -341,48 +389,86 @@ export async function getContractInfo() {
   }
 }
 
-// 사용자의 문서 목록 조회
-export async function getUserDocuments(userAddress: string): Promise<number[]> {
-  try {
-    const contract = await getDocuTradeContractReadOnly();
-    const docs = await contract.getUserDocuments(userAddress);
-    return docs.map((id: any) => Number(id));
-  } catch (error) {
-    console.error('사용자 문서 조회 실패:', error);
-    return [];
-  }
+// ============ 하위 호환성 유지 (기존 함수들) ============
+// 기존 코드와의 호환성을 위해 일부 함수는 deprecated로 유지
+
+/**
+ * @deprecated 새 컨트랙트에서는 mintNewNFT 사용
+ */
+export async function registerDocument(
+  title: string,
+  fileUrl: string,
+  description: string,
+  price: string,
+  amount: number
+) {
+  console.warn('⚠️  registerDocument는 deprecated됩니다. mintNewNFT를 사용하세요.');
+  // 메타데이터를 JSON으로 만들어 tokenURI로 전달
+  const metadata = JSON.stringify({ title, fileUrl, description, price, amount });
+  return mintNewNFT(metadata);
 }
 
-// 문서 상세 정보 조회
-export async function getDocument(docId: number) {
-  try {
-    const contract = await getDocuTradeContractReadOnly();
-    const doc = await contract.getDocument(docId);
+/**
+ * @deprecated 새 컨트랙트에서는 buyNFT 사용
+ */
+export async function buyDocuments(docId: number, quantity: number, pricePerToken: string) {
+  console.warn('⚠️  buyDocuments는 deprecated됩니다. buyNFT를 사용하세요.');
+  return buyNFT(docId);
+}
 
+/**
+ * @deprecated 새 컨트랙트에서는 getNFTMetadata 사용
+ */
+export async function getDocumentByToken(tokenId: number) {
+  console.warn('⚠️  getDocumentByToken은 deprecated됩니다. getNFTMetadata를 사용하세요.');
+  const metadata = await getNFTMetadata(tokenId);
+  if (!metadata) return null;
+  
+  // 기존 형식으로 변환
+  try {
+    const parsedURI = JSON.parse(metadata.tokenURI);
     return {
-      docId: Number(doc.docId),
-      title: doc.title,
-      fileUrl: doc.fileUrl,
-      description: doc.description,
-      seller: doc.seller,
-      pricePerToken: ethers.formatEther(doc.pricePerToken),
-      amount: Number(doc.amount),
-      isActive: doc.isActive,
+      docId: tokenId,
+      title: parsedURI.title || '',
+      fileUrl: parsedURI.fileUrl || '',
+      description: parsedURI.description || '',
+      seller: metadata.owner,
+      pricePerToken: metadata.listing?.price || '0',
+      amount: 1,
+      isActive: !!metadata.listing,
     };
-  } catch (error) {
-    console.error('문서 조회 실패:', error);
-    throw error;
+  } catch {
+    return null;
   }
 }
 
-// 전체 문서 수 조회
+/**
+ * @deprecated 새 컁랙트에서는 getNFTOwner 사용
+ */
+export async function ownsDocument(userAddress: string, docId: number): Promise<boolean> {
+  const owner = await getNFTOwner(docId);
+  return owner?.toLowerCase() === userAddress.toLowerCase();
+}
+
+/**
+ * @deprecated 새 컨트랙트에는 해당 기능 없음
+ */
+export async function getUserDocuments(userAddress: string): Promise<number[]> {
+  console.warn('⚠️  getUserDocuments는 getUserNFTs로 대체됩니다.');
+  return getUserNFTs(userAddress);
+}
+
+/**
+ * @deprecated 새 컨트랙트에는 해당 기능 없음
+ */
+export async function getDocument(docId: number) {
+  return getDocumentByToken(docId);
+}
+
+/**
+ * @deprecated 새 컨트랙트에는 totalDocuments 개념 없음
+ */
 export async function getTotalDocuments(): Promise<number> {
-  try {
-    const contract = await getDocuTradeContractReadOnly();
-    const total = await contract.getTotalDocuments();
-    return Number(total);
-  } catch (error) {
-    console.error('전체 문서 수 조회 실패:', error);
-    return 0;
-  }
+  console.warn('⚠️  새 컨트랙트에는 totalDocuments가 없습니다.');
+  return 0;
 }
