@@ -224,8 +224,57 @@ export default function AirdropPage() {
           <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '15px' }}>
             지갑을 연결하고 Sepolia 네트워크에 있는지 확인하세요.
           </div>
-          <div style={{ fontSize: '12px', opacity: 0.7, fontFamily: 'monospace' }}>
+          <div style={{ 
+            fontSize: '12px', 
+            opacity: 0.7, 
+            fontFamily: 'monospace',
+            whiteSpace: 'pre-wrap',
+            background: 'rgba(0,0,0,0.3)',
+            padding: '10px',
+            borderRadius: '6px',
+          }}>
             {initError}
+          </div>
+        </div>
+      )}
+
+      {initError && account && (
+        <div
+          style={{
+            background: 'rgba(255, 100, 100, 0.1)',
+            border: '1px solid rgba(255, 100, 100, 0.3)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '30px',
+            color: '#ff6464',
+          }}
+        >
+          <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '10px' }}>
+            ⚠️ 컨트랙트를 찾을 수 없습니다
+          </div>
+          <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '15px' }}>
+            컨트랙트가 현재 네트워크에 배포되지 않았습니다.
+          </div>
+          <details style={{ fontSize: '12px', opacity: 0.7, cursor: 'pointer' }}>
+            <summary style={{ marginBottom: '10px' }}>에러 상세보기</summary>
+            <div style={{ 
+              fontFamily: 'monospace',
+              whiteSpace: 'pre-wrap',
+              background: 'rgba(0,0,0,0.3)',
+              padding: '10px',
+              borderRadius: '6px',
+              marginTop: '10px',
+            }}>
+              {initError}
+            </div>
+          </details>
+          <div style={{ marginTop: '15px', fontSize: '14px' }}>
+            <strong>해결 방법:</strong>
+            <ol style={{ marginTop: '10px', paddingLeft: '20px' }}>
+              <li>Sepolia 네트워크에 연결되어 있는지 확인</li>
+              <li>컨트랙트가 Sepolia에 배포되었는지 확인</li>
+              <li>.env.local의 NEXT_PUBLIC_CONTRACT_ADDRESS 확인</li>
+            </ol>
           </div>
         </div>
       )}

@@ -57,6 +57,19 @@ export async function getDocuTradeContractReadOnly() {
   
   try {
     const provider = new ethers.BrowserProvider((window as any).ethereum);
+    
+    // 컨트랙트가 배포되었는지 확인
+    const code = await provider.getCode(CONTRACT_ADDRESS);
+    if (code === '0x') {
+      const network = await provider.getNetwork();
+      throw new Error(
+        `컨트랙트가 배포되지 않았습니다!\n` +
+        `주소: ${CONTRACT_ADDRESS}\n` +
+        `네트워크: ${network.name} (chainId: ${network.chainId})\n\n` +
+        `Sepolia 네트워크(chainId: 11155111)에 컨트랙트를 배포했는지 확인하세요.`
+      );
+    }
+    
     return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI, provider);
   } catch (error) {
     console.error('컨트랙트 인스턴스 생성 실패:', error);
