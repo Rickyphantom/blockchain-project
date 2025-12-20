@@ -119,6 +119,9 @@ export default function DashboardPage() {
         tokenIds.map(async (tokenId) => {
           try {
             const doc = await getDocumentByToken(tokenId);
+            if (!doc) {
+              return null;
+            }
             return {
               tokenId,
               docId: doc.docId,
