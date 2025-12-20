@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { connectWallet } from '@/lib/web3';
+import { connectWallet, getCurrentChainId } from '@/lib/web3';
 import {
   requestAirdrop,
   checkAirdropStatus,
@@ -20,9 +20,11 @@ export default function AirdropPage() {
   const [tokenInfo, setTokenInfo] = useState({ name: '', symbol: '', decimals: 18 });
   const [tokenAddress, setTokenAddress] = useState('');
   const [contractInfo, setContractInfo] = useState({ name: '', symbol: '', address: '' });
+  const [currentNetwork, setCurrentNetwork] = useState<string>('');
 
   useEffect(() => {
     loadInitialData();
+    checkNetwork();
   }, []);
 
   useEffect(() => {
@@ -52,6 +54,21 @@ export default function AirdropPage() {
     }
   };
 
+  const checkNetwork = async () => {
+    try {
+      const chainId = await getCurrentChainId();
+      const networkName = chainId === '0xaa36a7' ? 'Sepolia' : `Unknown (${chainId})`;
+      setCurrentNetwork(networkName);
+      
+      if (chainId !== '0xaa36a7') {
+        console.warn('⚠️ Sepolia 네트워크가 아닙니다:', chainId);
+      }
+    } catch (error) {
+      console.error('네트워크 확인 실패:', error);
+      setCurrentNetwork('Unknown');
+    }
+  };
+
   const checkUserStatus = async () => {
     if (!account || !tokenAddress) return;
 
@@ -72,9 +89,12 @@ export default function AirdropPage() {
     try {
       const address = await connectWallet();
       setAccount(address);
+      // 지갑 연결 후 네트워크 확인 및 상태 새로고침
+      await checkNetwork();
+      setTimeout(() => checkUserStatus(), 1000);
     } catch (error) {
       console.error('지갑 연결 실패:', error);
-      alert('지갑 연결에 실패했습니다.');
+      alert('지갑 연결에 실패했습니다. Sepolia 네트워크로 전환해주세요.');
     }
   };
 

@@ -37,12 +37,31 @@ export const getSigner = async () => {
   return await provider.getSigner();
 };
 
+export const getCurrentChainId = async (): Promise<string> => {
+  try {
+    if (!window.ethereum) {
+      throw new Error('MetaMask를 설치해주세요');
+    }
+
+    const chainId = await window.ethereum.request({
+      method: 'eth_chainId',
+      params: []
+    }) as string;
+
+    return chainId;
+  } catch (error) {
+    console.error('체인 ID 조회 실패:', error);
+    throw error;
+  }
+};
+
 export const connectWallet = async (): Promise<string> => {
   try {
     if (!window.ethereum) {
       throw new Error('MetaMask를 설치해주세요');
     }
 
+    // 먼저 계정 연결
     const accounts = await window.ethereum.request({
       method: 'eth_requestAccounts',
       params: []
@@ -50,6 +69,15 @@ export const connectWallet = async (): Promise<string> => {
 
     if (!accounts || accounts.length === 0) {
       throw new Error('계정을 찾을 수 없습니다');
+    }
+
+    // 현재 네트워크 확인
+    const chainId = await getCurrentChainId();
+    
+    // Sepolia가 아니면 전환 요청
+    if (chainId !== '0xaa36a7') {
+      console.log('현재 네트워크:', chainId, '→ Sepolia로 전환 중...');
+      await switchToSepolia();
     }
 
     return accounts[0];
