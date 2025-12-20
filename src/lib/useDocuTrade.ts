@@ -51,8 +51,17 @@ export async function getDocuTradeContractReadOnly() {
     throw new Error('컨트랙트 주소가 설정되지 않았습니다. .env.local 파일을 확인하세요.');
   }
   
-  const provider = new ethers.BrowserProvider((window as any).ethereum);
-  return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI, provider);
+  if (typeof window === 'undefined' || !(window as any).ethereum) {
+    throw new Error('MetaMask가 설치되지 않았거나 브라우저 환경이 아닙니다.');
+  }
+  
+  try {
+    const provider = new ethers.BrowserProvider((window as any).ethereum);
+    return new ethers.Contract(CONTRACT_ADDRESS, DocuTradeABI, provider);
+  } catch (error) {
+    console.error('컨트랙트 인스턴스 생성 실패:', error);
+    throw error;
+  }
 }
 
 // ============ 타입 정의 ============
@@ -179,10 +188,16 @@ export async function setAirdropAmount(amount: string): Promise<string> {
  */
 export async function getPaymentTokenAddress(): Promise<string> {
   try {
+    console.log('🔍 결제 토큰 주소 조회 시작...');
+    console.log('  - 컨트랙트 주소:', CONTRACT_ADDRESS);
+    
     const contract = await getDocuTradeContractReadOnly();
-    return await contract.paymentToken();
+    const tokenAddress = await contract.paymentToken();
+    
+    console.log('  ✅ 토큰 주소:', tokenAddress);
+    return tokenAddress;
   } catch (error) {
-    console.error('토큰 주소 조회 실패:', error);
+    console.error('❌ 토큰 주소 조회 실패:', error);
     return '';
   }
 }
@@ -447,21 +462,46 @@ export async function getNFTMetadata(tokenId: number): Promise<NFTMetadata | nul
  */
 export async function getContractInfo() {
   try {
-    const contract = await getDocuTradeContractReadOnly();
-    const name = await contract.name();
-    const symbol = await contract.symbol();
-    const paymentToken = await contract.paymentToken();
-    const airdropAmount = await contract.airdropAmount();
+    console.log('📋 컨트랙트 정보 조회 시작...');
+    console.log('  - 컨트랙트 주소:', CONTRACT_ADDRESS);
     
-    return {
+    const contract = await getDocuTradeContractReadOnly();
+    
+    console.log('  - name() 호출 중...');
+    const name = await contract.name();
+    console.log('    ✅ name:', name);
+    
+    console.log('  - symbol() 호출 중...');
+    const symbol = await contract.symbol();
+    console.log('    ✅ symbol:', symbol);
+    
+    console.log('  - paymentToken() 호출 중...');
+    const paymentToken = await contract.paymentToken();
+    console.log('    ✅ paymentToken:', paymentToken);
+    
+    console.log('  - airdropAmount() 호출 중...');
+    const airdropAmount = await contract.airdropAmount();
+    console.log('    ✅ airdropAmount (raw):', airdropAmount.toString());
+    
+    const formattedAmount = ethers.formatEther(airdropAmount);
+    console.log('    ✅ airdropAmount (formatted):', formattedAmount);
+    
+    const info = {
       name,
       symbol,
       address: CONTRACT_ADDRESS || '',
       paymentToken,
-      airdropAmount: ethers.formatEther(airdropAmount),
+      airdropAmount: formattedAmount,
     };
+    
+    console.log('  🎉 컨트랙트 정보 조회 완료:', info);
+    return info;
   } catch (error) {
-    console.error('컨트랙트 정보 조회 실패:', error);
+    console.error('❌ 컨트랙트 정보 조회 실패:', error);
+    if (error instanceof Error) {
+      console.error('  - 에러 메시지:', error.message);
+      console.error('  - 스택:', error.stack);
+    }
     throw error;
   }
 }

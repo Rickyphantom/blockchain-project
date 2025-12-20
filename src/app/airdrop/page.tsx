@@ -39,22 +39,36 @@ export default function AirdropPage() {
 
   const loadInitialData = async () => {
     try {
+      console.log('🔄 초기 데이터 로드 시작...');
+      
       // 컨트랙트 정보 로드
+      console.log('1️⃣ 컨트랙트 정보 로드 중...');
       const info = await getContractInfo();
+      console.log('✅ 컨트랙트 정보:', info);
       setContractInfo(info);
       setAirdropAmountState(info.airdropAmount);
 
       // 토큰 주소 로드
+      console.log('2️⃣ 토큰 주소 로드 중...');
       const paymentToken = await getPaymentTokenAddress();
+      console.log('✅ 토큰 주소:', paymentToken);
       setTokenAddress(paymentToken);
 
       // 토큰 정보 로드
       if (paymentToken) {
+        console.log('3️⃣ 토큰 정보 로드 중...');
         const tokenData = await getTokenInfo(paymentToken);
+        console.log('✅ 토큰 정보:', tokenData);
         setTokenInfo(tokenData);
       }
+      
+      console.log('🎉 초기 데이터 로드 완료!');
     } catch (error) {
-      console.error('초기 데이터 로드 실패:', error);
+      console.error('❌ 초기 데이터 로드 실패:', error);
+      if (error instanceof Error) {
+        console.error('  - 에러 메시지:', error.message);
+        alert(`초기 데이터 로드 실패:\n${error.message}\n\nMetaMask를 연결하고 Sepolia 네트워크에 있는지 확인하세요.`);
+      }
     }
   };
 
