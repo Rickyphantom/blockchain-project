@@ -6,7 +6,6 @@ import { supabase } from '@/lib/supabase';
 import {
   getUserNFTs,
   getDocumentByToken,
-  deactivateDocument,
 } from '@/lib/useDocuTrade';
 import NFTCertificate from '@/components/NFTCertificate';
 import { getUserPurchases } from '@/lib/supabase';
