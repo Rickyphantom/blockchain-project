@@ -25,10 +25,12 @@ export default function AirdropPage() {
   const [isOwner, setIsOwner] = useState(false);
   const [newAirdropAmount, setNewAirdropAmount] = useState('');
   const [changingAmount, setChangingAmount] = useState(false);
+  const [initError, setInitError] = useState<string>('');
 
   useEffect(() => {
-    loadInitialData();
+    // 초기 데이터는 에러가 나도 페이지를 표시
     checkNetwork();
+    // 컨트랙트 정보는 지갑 연결 후에 로드하도록 변경
   }, []);
 
   useEffect(() => {
@@ -40,6 +42,7 @@ export default function AirdropPage() {
   const loadInitialData = async () => {
     try {
       console.log('🔄 초기 데이터 로드 시작...');
+      setInitError('');
       
       // 컨트랙트 정보 로드
       console.log('1️⃣ 컨트랙트 정보 로드 중...');
@@ -65,10 +68,10 @@ export default function AirdropPage() {
       console.log('🎉 초기 데이터 로드 완료!');
     } catch (error) {
       console.error('❌ 초기 데이터 로드 실패:', error);
-      if (error instanceof Error) {
-        console.error('  - 에러 메시지:', error.message);
-        alert(`초기 데이터 로드 실패:\n${error.message}\n\nMetaMask를 연결하고 Sepolia 네트워크에 있는지 확인하세요.`);
-      }
+      const errorMsg = error instanceof Error ? error.message : '알 수 없는 오류';
+      setInitError(errorMsg);
+      console.error('  - 에러 메시지:', errorMsg);
+      // alert 제거 - UI에 표시
     }
   };
 
@@ -120,8 +123,9 @@ export default function AirdropPage() {
     try {
       const address = await connectWallet();
       setAccount(address);
-      // 지갑 연결 후 네트워크 확인 및 상태 새로고침
+      // 지갑 연결 후 네트워크 확인 및 컨트랙트 정보 로드
       await checkNetwork();
+      await loadInitialData();
       setTimeout(() => checkUserStatus(), 1000);
     } catch (error) {
       console.error('지갑 연결 실패:', error);
@@ -201,6 +205,30 @@ export default function AirdropPage() {
           무료로 {tokenInfo.symbol || 'Token'}을 받으세요!
         </p>
       </div>
+
+      {/* 초기화 에러 메시지 */}
+      {initError && !account && (
+        <div
+          style={{
+            background: 'rgba(255, 100, 100, 0.1)',
+            border: '1px solid rgba(255, 100, 100, 0.3)',
+            borderRadius: '12px',
+            padding: '20px',
+            marginBottom: '30px',
+            color: '#ff6464',
+          }}
+        >
+          <div style={{ fontSize: '18px', fontWeight: 'bold', marginBottom: '10px' }}>
+            ⚠️ 컨트랙트 정보를 불러올 수 없습니다
+          </div>
+          <div style={{ fontSize: '14px', opacity: 0.9, marginBottom: '15px' }}>
+            지갑을 연결하고 Sepolia 네트워크에 있는지 확인하세요.
+          </div>
+          <div style={{ fontSize: '12px', opacity: 0.7, fontFamily: 'monospace' }}>
+            {initError}
+          </div>
+        </div>
+      )}
 
       {/* 컨트랙트 정보 */}
       <div
