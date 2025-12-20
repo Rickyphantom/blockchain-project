@@ -8,6 +8,7 @@ import {
   getAirdropAmount,
   getPaymentTokenAddress,
   getContractInfo,
+  setAirdropAmount,
 } from '@/lib/useDocuTrade';
 import { getTokenBalance, getTokenInfo } from '@/lib/erc20';
 
@@ -15,12 +16,15 @@ export default function AirdropPage() {
   const [account, setAccount] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [hasReceived, setHasReceived] = useState(false);
-  const [airdropAmount, setAirdropAmount] = useState('0');
+  const [airdropAmount, setAirdropAmountState] = useState('0');
   const [tokenBalance, setTokenBalance] = useState('0');
   const [tokenInfo, setTokenInfo] = useState({ name: '', symbol: '', decimals: 18 });
   const [tokenAddress, setTokenAddress] = useState('');
   const [contractInfo, setContractInfo] = useState({ name: '', symbol: '', address: '' });
   const [currentNetwork, setCurrentNetwork] = useState<string>('');
+  const [isOwner, setIsOwner] = useState(false);
+  const [newAirdropAmount, setNewAirdropAmount] = useState('');
+  const [changingAmount, setChangingAmount] = useState(false);
 
   useEffect(() => {
     loadInitialData();
@@ -38,7 +42,7 @@ export default function AirdropPage() {
       // 컨트랙트 정보 로드
       const info = await getContractInfo();
       setContractInfo(info);
-      setAirdropAmount(info.airdropAmount);
+      setAirdropAmountState(info.airdropAmount);
 
       // 토큰 주소 로드
       const paymentToken = await getPaymentTokenAddress();
@@ -57,31 +61,44 @@ export default function AirdropPage() {
   const checkNetwork = async () => {
     try {
       const chainId = await getCurrentChainId();
-      const networkName = chainId === '0xaa36a7' ? 'Sepolia' : `Unknown (${chainId})`;
+      console.log('🌐 현재 네트워크 체인 ID:', chainId);
+      
+      const networkName = chainId === '0xaa36a7' ? '✅ Sepolia' : `❌ ${chainId} (Sepolia가 아님)`;
       setCurrentNetwork(networkName);
       
       if (chainId !== '0xaa36a7') {
-        console.warn('⚠️ Sepolia 네트워크가 아닙니다:', chainId);
+        console.warn('⚠️ 경고: Sepolia 네트워크가 아닙니다!');
+        console.warn('   현재 체인 ID:', chainId);
+        console.warn('   필요한 체인 ID: 0xaa36a7');
       }
     } catch (error) {
-      console.error('네트워크 확인 실패:', error);
+      console.error('❌ 네트워크 확인 실패:', error);
       setCurrentNetwork('Unknown');
     }
   };
 
   const checkUserStatus = async () => {
-    if (!account || !tokenAddress) return;
+    if (!account || !tokenAddress) {
+      console.log('⚠️ 계정 또는 토큰 주소 없음:', { account, tokenAddress });
+      return;
+    }
 
     try {
+      console.log('📊 사용자 상태 확인 시작...');
+      console.log('- 계정:', account);
+      console.log('- 토큰 주소:', tokenAddress);
+      
       // 에어드랍 수령 여부 확인
       const status = await checkAirdropStatus(account);
+      console.log('- 에어드랍 수령 여부:', status);
       setHasReceived(status);
 
       // 토큰 잔액 조회
       const balance = await getTokenBalance(tokenAddress, account);
+      console.log('- 토큰 잔액:', balance);
       setTokenBalance(balance);
     } catch (error) {
-      console.error('사용자 상태 확인 실패:', error);
+      console.error('❌ 사용자 상태 확인 실패:', error);
     }
   };
 
@@ -122,6 +139,32 @@ export default function AirdropPage() {
       alert(`에어드랍 실패: ${error.message || '알 수 없는 오류'}`);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleChangeAirdropAmount = async () => {
+    if (!newAirdropAmount || parseFloat(newAirdropAmount) <= 0) {
+      alert('올바른 금액을 입력하세요.');
+      return;
+    }
+
+    if (!confirm(`에어드랍 금액을 ${newAirdropAmount} ${tokenInfo.symbol}로 변경하시겠습니까?`)) {
+      return;
+    }
+
+    setChangingAmount(true);
+    try {
+      await setAirdropAmount(newAirdropAmount);
+      alert(`✅ 에어드랍 금액이 ${newAirdropAmount} ${tokenInfo.symbol}로 변경되었습니다!`);
+      
+      // 상태 새로고침
+      await loadInitialData();
+      setNewAirdropAmount('');
+    } catch (error: any) {
+      console.error('에어드랍 금액 변경 실패:', error);
+      alert(`❌ 금액 변경 실패: ${error.message || '알 수 없는 오류'}`);
+    } finally {
+      setChangingAmount(false);
     }
   };
 
@@ -254,6 +297,59 @@ export default function AirdropPage() {
                 * 1인당 1회만 받을 수 있습니다
               </p>
             )}
+          </div>
+
+          {/* 관리자용: 에어드랍 금액 변경 */}
+          <div
+            style={{
+              marginTop: '40px',
+              padding: '30px',
+              background: 'rgba(255, 100, 100, 0.05)',
+              borderRadius: '16px',
+              border: '1px solid rgba(255, 100, 100, 0.2)',
+            }}
+          >
+            <h2 style={{ fontSize: '20px', marginBottom: '20px', color: '#ff6464' }}>
+              🔧 관리자: 에어드랍 금액 설정
+            </h2>
+            <p style={{ marginBottom: '20px', color: '#aaa', fontSize: '14px' }}>
+              컨트랙트 소유자만 에어드랍 금액을 변경할 수 있습니다.
+            </p>
+            <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+              <input
+                type="number"
+                value={newAirdropAmount}
+                onChange={(e) => setNewAirdropAmount(e.target.value)}
+                placeholder="새로운 금액 (예: 1000)"
+                style={{
+                  flex: 1,
+                  padding: '12px 16px',
+                  fontSize: '16px',
+                  background: 'var(--surface)',
+                  border: '1px solid rgba(255,255,255,0.2)',
+                  borderRadius: '8px',
+                  color: 'white',
+                }}
+              />
+              <span style={{ color: '#aaa' }}>{tokenInfo.symbol}</span>
+              <button
+                onClick={handleChangeAirdropAmount}
+                disabled={changingAmount || !newAirdropAmount}
+                style={{
+                  padding: '12px 24px',
+                  fontSize: '16px',
+                  background: changingAmount ? '#555' : '#ff6464',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: changingAmount ? 'not-allowed' : 'pointer',
+                  fontWeight: 'bold',
+                  opacity: changingAmount ? 0.7 : 1,
+                }}
+              >
+                {changingAmount ? '변경 중...' : '변경'}
+              </button>
+            </div>
           </div>
         </>
       )}

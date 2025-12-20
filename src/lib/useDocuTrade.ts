@@ -22,6 +22,8 @@ const DocuTradeABI = [
   "function buyNFT(uint256 _tokenId)",
   "function approve(address to, uint256 tokenId)",
   "function setApprovalForAll(address operator, bool approved)",
+  "function setAirdropAmount(uint256 _newAmount)",
+  "function owner() view returns (address)",
   // 이벤트
   "event NFTMinted(uint256 indexed tokenId, address indexed creator, string uri)",
   "event NFTListed(uint256 indexed tokenId, address indexed seller, uint256 price)",
@@ -141,6 +143,38 @@ export async function getAirdropAmount(): Promise<string> {
 }
 
 /**
+ * 에어드랍 금액 변경 (관리자 전용)
+ * @param amount - 새로운 에어드랍 금액 (ETH 형식 문자열, 예: "1000")
+ */
+export async function setAirdropAmount(amount: string): Promise<string> {
+  try {
+    const contract = await getDocuTradeContract();
+    const signer = await getSigner();
+    const userAddress = await signer.getAddress();
+    
+    // 관리자 권한 확인
+    const owner = await contract.owner();
+    if (owner.toLowerCase() !== userAddress.toLowerCase()) {
+      throw new Error('관리자만 에어드랍 금액을 변경할 수 있습니다.');
+    }
+    
+    const amountInWei = ethers.parseEther(amount);
+    console.log('💰 에어드랍 금액 변경 중...', amount, 'tokens');
+    
+    const tx = await contract.setAirdropAmount(amountInWei);
+    console.log('트랜잭션 해시:', tx.hash);
+    
+    await tx.wait();
+    console.log('✅ 에어드랍 금액 변경 완료!');
+    
+    return tx.hash;
+  } catch (error) {
+    console.error('❌ 에어드랍 금액 변경 실패:', error);
+    throw error;
+  }
+}
+
+/**
  * 결제 토큰 주소 조회
  */
 export async function getPaymentTokenAddress(): Promise<string> {
@@ -163,30 +197,73 @@ export async function getPaymentTokenAddress(): Promise<string> {
 export async function mintNewNFT(tokenURI: string): Promise<number> {
   try {
     const contract = await getDocuTradeContract();
-    const tx = await contract.mintNewNFT(tokenURI);
     
-    console.log('NFT 발행 트랜잭션:', tx.hash);
+    console.log('🎨 NFT 발행 시작...');
+    console.log('  - TokenURI:', tokenURI);
+    
+    const tx = await contract.mintNewNFT(tokenURI);
+    console.log('  - 트랜잭션 해시:', tx.hash);
+    
     const receipt = await tx.wait();
-    console.log('NFT 발행 완료:', receipt);
+    console.log('  - 트랜잭션 완료:', receipt);
 
-    // 이벤트에서 tokenId 추출
-    const event = receipt.logs.find((log: any) => {
+    // 방법 1: 이벤트에서 tokenId 추출 시도
+    let tokenId: number | null = null;
+    
+    for (const log of receipt.logs) {
       try {
-        const parsed = contract.interface.parseLog(log);
-        return parsed?.name === 'NFTMinted';
-      } catch {
-        return false;
+        const parsed = contract.interface.parseLog({
+          topics: [...log.topics],
+          data: log.data
+        });
+        
+        console.log('  - 이벤트 발견:', parsed?.name);
+        
+        if (parsed && parsed.name === 'NFTMinted') {
+          tokenId = Number(parsed.args.tokenId);
+          console.log('  ✅ 토큰 ID 추출 성공 (이벤트):', tokenId);
+          break;
+        }
+      } catch (e) {
+        // 파싱 실패한 로그는 무시
+        continue;
       }
-    });
-
-    if (event) {
-      const parsed = contract.interface.parseLog(event);
-      return Number(parsed?.args.tokenId);
     }
 
-    throw new Error('토큰 ID를 찾을 수 없습니다.');
+    // 방법 2: 이벤트에서 못 찾으면 Transfer 이벤트에서 추출 시도
+    if (tokenId === null) {
+      console.log('  ⚠️ NFTMinted 이벤트를 찾지 못했습니다. Transfer 이벤트 확인 중...');
+      
+      for (const log of receipt.logs) {
+        try {
+          const parsed = contract.interface.parseLog({
+            topics: [...log.topics],
+            data: log.data
+          });
+          
+          // Transfer(address from, address to, uint256 tokenId)
+          // from이 0x0이면 민팅
+          if (parsed && parsed.name === 'Transfer' && parsed.args.from === ethers.ZeroAddress) {
+            tokenId = Number(parsed.args.tokenId);
+            console.log('  ✅ 토큰 ID 추출 성공 (Transfer):', tokenId);
+            break;
+          }
+        } catch (e) {
+          continue;
+        }
+      }
+    }
+
+    if (tokenId === null || isNaN(tokenId)) {
+      console.error('  ❌ 모든 로그:', receipt.logs);
+      throw new Error('토큰 ID를 찾을 수 없습니다. 트랜잭션은 성공했지만 이벤트에서 토큰 ID를 추출하지 못했습니다.');
+    }
+
+    console.log('  🎉 NFT 발행 완료! 토큰 ID:', tokenId);
+    return tokenId;
+    
   } catch (error) {
-    console.error('NFT 발행 실패:', error);
+    console.error('❌ NFT 발행 실패:', error);
     throw error;
   }
 }
@@ -401,11 +478,20 @@ export async function registerDocument(
   description: string,
   price: string,
   amount: number
-) {
-  console.warn('⚠️  registerDocument는 deprecated됩니다. mintNewNFT를 사용하세요.');
+): Promise<number> {
+  console.log('📄 문서 등록 시작...');
+  console.log('  - 제목:', title);
+  console.log('  - 가격:', price);
+  console.log('  - 수량:', amount);
+  
   // 메타데이터를 JSON으로 만들어 tokenURI로 전달
   const metadata = JSON.stringify({ title, fileUrl, description, price, amount });
-  return mintNewNFT(metadata);
+  console.log('  - 메타데이터:', metadata);
+  
+  const tokenId = await mintNewNFT(metadata);
+  console.log('  ✅ 문서 등록 완료! 토큰 ID:', tokenId);
+  
+  return tokenId;
 }
 
 /**

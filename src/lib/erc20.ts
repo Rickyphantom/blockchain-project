@@ -37,11 +37,20 @@ export async function getERC20ContractReadOnly(tokenAddress: string) {
  */
 export async function getTokenBalance(tokenAddress: string, userAddress: string): Promise<string> {
   try {
+    console.log('💰 토큰 잔액 조회 중...');
+    console.log('  - 토큰 주소:', tokenAddress);
+    console.log('  - 사용자 주소:', userAddress);
+    
     const contract = await getERC20ContractReadOnly(tokenAddress);
     const balance = await contract.balanceOf(userAddress);
-    return ethers.formatEther(balance);
+    const formatted = ethers.formatEther(balance);
+    
+    console.log('  - Raw 잔액:', balance.toString());
+    console.log('  - 포맷된 잔액:', formatted);
+    
+    return formatted;
   } catch (error) {
-    console.error('토큰 잔액 조회 실패:', error);
+    console.error('❌ 토큰 잔액 조회 실패:', error);
     return '0';
   }
 }
