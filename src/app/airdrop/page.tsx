@@ -159,6 +159,7 @@ export default function AirdropPage() {
           📊 컨트랙트 정보
         </h2>
         <div style={{ display: 'grid', gap: '12px' }}>
+          <InfoRow label="현재 네트워크" value={currentNetwork || 'Loading...'} />
           <InfoRow label="NFT 이름" value={contractInfo.name} />
           <InfoRow label="심볼" value={contractInfo.symbol} />
           <InfoRow label="컨트랙트 주소" value={contractInfo.address} />
